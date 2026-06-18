@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Dashboard Trabajador — Menaje</title>
+  <link rel="stylesheet" href="/assets/css/main.css"/>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-brand">🍽 <span>Menaje</span></div>
+    <div class="sidebar-user"><strong id="sidebar-user-name"></strong><span id="sidebar-user-rol"></span></div>
+    <nav>
+      <a href="/pages/trabajador/dashboard.html" class="active"><span class="icon">📋</span>Alquileres</a>
+      <a href="/pages/trabajador/inventario.html"><span class="icon">📦</span>Inventario</a>
+      <a href="/pages/trabajador/qr-scan.html"><span class="icon">📱</span>Escanear QR</a>
+    </nav>
+    <div class="sidebar-footer"><button onclick="logout()">Cerrar sesión</button></div>
+  </aside>
+
+  <main class="main-content">
+    <div class="topbar"><h1>📋 Alquileres Activos</h1></div>
+
+    <!-- Filtros -->
+    <div class="card" style="margin-bottom:16px">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+        <div class="form-group" style="margin:0;flex:1;min-width:160px">
+          <label>Buscar cliente</label>
+          <input class="form-control" id="q" placeholder="Nombre..." oninput="cargar()"/>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>Estado</label>
+          <select class="form-control" id="estado" onchange="cargar()">
+            <option value="">Todos</option>
+            <option value="confirmado">Confirmado</option>
+            <option value="entregado">Entregado</option>
+            <option value="recogido">Recogido</option>
+            <option value="en_revision">En revisión</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>Desde</label>
+          <input type="date" class="form-control" id="desde" onchange="cargar()"/>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>Hasta</label>
+          <input type="date" class="form-control" id="hasta" onchange="cargar()"/>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Cliente</th><th>Entrega</th><th>Recojo</th><th>Total</th><th>Estado</th><th>Acciones</th></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- MODAL REGISTRAR PAGO -->
+<div class="modal-overlay" id="modal-pago">
+  <div class="modal">
+    <div class="modal-header"><h2>💳 Registrar Pago</h2><button class="modal-close" onclick="closeModal('modal-pago')">×</button></div>
+    <input type="hidden" id="pago-alq-id"/>
+    <div class="form-group"><label>Monto</label><input type="number" class="form-control" id="pago-monto" step="0.01"/></div>
+    <div class="form-group"><label>Método</label>
+      <select class="form-control" id="pago-metodo">
+        <option value="efectivo">Efectivo</option>
+        <option value="transferencia">Transferencia</option>
+        <option value="yape">Yape</option>
+        <option value="plin">Plin</option>
+      </select>
+    </div>
+    <button class="btn btn-success" style="width:100%;justify-content:center" onclick="confirmarPago()">✅ Confirmar Pago</button>
+  </div>
+</div>
+
+<!-- MODAL DETALLE -->
+<div class="modal-overlay" id="modal-detalle">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-header"><h2>Detalle del Alquiler</h2><button class="modal-close" onclick="closeModal('modal-detalle')">×</button></div>
+    <div id="detalle-body"></div>
+  </div>
+</div>
+
+<script src="/assets/js/app.js"></script>
+<script>
+if (!Auth.requireAuth('trabajador')) throw new Error('no auth');
+
+async function cargar() {
+  const q      = document.getElementById('q').value;
+  const estado = document.getElementById('estado').value;
+  const desde  = document.getElementById('desde').value;
+  const hasta  = document.getElementById('hasta').value;
+  let url = '/alquileres?';
+  if (q)      url += `q=${encodeURIComponent(q)}&`;
+  if (estado) url += `estado=${estado}&`;
+  if (desde)  url += `desde=${desde}&`;
+  if (hasta)  url += `hasta=${hasta}`;
+  try {
+    const alqs = await apiFetch(url);
+    const tbody = document.getElementById('tbody');
+    if (!alqs.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Sin alquileres con esos filtros</td></tr>'; return; }
+    tbody.innerHTML = alqs.map(a => `
+      <tr>
+        <td>#${a.id}</td>
+        <td><strong>${a.cliente_nombre}</strong><br/><small style="color:var(--text-muted)">${a.cliente_telefono||''}</small></td>
+        <td>${fmtFecha(a.fecha_entrega)}</td>
+        <td>${fmtFecha(a.fecha_recojo)}</td>
+        <td>${sol(a.total)}</td>
+        <td>${badgeEstado(a.estado)}</td>
+        <td style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-outline btn-sm" onclick="verDetalle(${a.id})">🔍</button>
+          ${a.estado === 'confirmado' || a.estado === 'entregado' || a.estado === 'recogido'
+            ? `<a href="/pages/trabajador/qr-scan.html" class="btn btn-primary btn-sm">📱 QR</a>`:''}
+          ${a.estado === 'recogido' ? `<a href="/pages/trabajador/revision.html?id=${a.id}" class="btn btn-outline btn-sm">📝 Revisión</a>`:''}
+        </td>
+      </tr>`).join('');
+  } catch(e) { toast(e.message,'error'); }
+}
+
+function abrirPago(id, total) {
+  document.getElementById('pago-alq-id').value = id;
+  document.getElementById('pago-monto').value  = total;
+  openModal('modal-pago');
+}
+
+async function confirmarPago() {
+  const id     = document.getElementById('pago-alq-id').value;
+  const monto  = document.getElementById('pago-monto').value;
+  const metodo = document.getElementById('pago-metodo').value;
+  try {
+    await apiFetch(`/alquileres/${id}/pago`, { method:'POST', body: JSON.stringify({ monto, metodo }) });
+    toast('Pago registrado. Alquiler confirmado.');
+    closeModal('modal-pago');
+    cargar();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function verDetalle(id) {
+  try {
+    const a = await apiFetch(`/alquileres/${id}`);
+    document.getElementById('detalle-body').innerHTML = `
+      <p><strong>Cliente:</strong> ${a.cliente_nombre} | ${a.cliente_correo}</p>
+      <p><strong>Teléfono:</strong> ${a.cliente_telefono||'—'}</p>
+      <p><strong>Dirección:</strong> ${a.direccion_evento}</p>
+      <p><strong>Entrega:</strong> ${fmtFecha(a.fecha_entrega)} &nbsp; <strong>Recojo:</strong> ${fmtFecha(a.fecha_recojo)}</p>
+      <p><strong>Estado:</strong> ${badgeEstado(a.estado)}</p>
+      <table style="margin-top:12px">
+        <thead><tr><th>Producto</th><th>Cant.</th><th>Precio</th><th>Sub.</th></tr></thead>
+        <tbody>${a.items.map(i=>`<tr><td>${i.nombre}</td><td>${i.cantidad}</td><td>${sol(i.precio_unit)}</td><td>${sol(i.subtotal)}</td></tr>`).join('')}</tbody>
+      </table>
+      <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between"><span>Subtotal</span><span>${sol(a.subtotal)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>Descuento</span><span>-${sol(a.descuento_monto)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>Garantía</span><span>${sol(a.garantia)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:700"><span>TOTAL</span><span>${sol(a.total)}</span></div>
+      </div>`;
+    openModal('modal-detalle');
+  } catch(e) { toast(e.message,'error'); }
+}
+
+cargar();
+</script>
+</body>
+</html>
