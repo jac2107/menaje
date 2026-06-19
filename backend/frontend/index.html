@@ -89,6 +89,15 @@
       });
       Auth.save(data.token, data.usuario);
       const rol = data.usuario.rol;
+
+      // 👇 Si venía de escanear un QR sin sesión, lo regresamos al escáner con el token intacto
+      const pendingQr = localStorage.getItem('pending_qr_token');
+      if (pendingQr && ['trabajador','dueno'].includes(rol)) {
+        localStorage.removeItem('pending_qr_token');
+        location.href = `/pages/trabajador/qr-scan.html?token=${pendingQr}`;
+        return; // evita que siga a las redirecciones normales de abajo
+      }
+
       if (rol === 'cliente')    location.href = '/pages/cliente/catalogo.html';
       if (rol === 'trabajador') location.href = '/pages/trabajador/dashboard.html';
       if (rol === 'dueno')      location.href = '/pages/dueno/dashboard.html';

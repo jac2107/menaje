@@ -49,13 +49,27 @@
 <script src="/assets/js/app.js"></script>
 <script>
 // Acepta ambos roles
-if (!Auth.token) { location.href = '/index.html'; throw new Error('no auth'); }
-if (!['trabajador','dueno'].includes(Auth.usuario?.rol)) { location.href='/index.html'; throw new Error('rol'); }
-
-// Auto-rellenar desde URL ?token=
+// Extraer el token del QR de la URL ANTES de cualquier validación de sesión
 const params = new URLSearchParams(location.search);
-if (params.get('token')) {
-  document.getElementById('token-input').value = params.get('token');
+const qrTokenFromUrl = params.get('token');
+
+// Acepta ambos roles
+if (!Auth.token) {
+  if (qrTokenFromUrl) localStorage.setItem('pending_qr_token', qrTokenFromUrl);
+  location.href = '/index.html';
+  throw new Error('no auth');
+}
+if (!['trabajador','dueno'].includes(Auth.usuario?.rol)) {
+  if (qrTokenFromUrl) localStorage.setItem('pending_qr_token', qrTokenFromUrl);
+  location.href = '/index.html';
+  throw new Error('rol');
+}
+
+// Auto-rellenar: prioriza el token de la URL actual; si no hay, usa uno pendiente guardado en el login
+const tokenPendiente = qrTokenFromUrl || localStorage.getItem('pending_qr_token');
+if (tokenPendiente) {
+  document.getElementById('token-input').value = tokenPendiente;
+  localStorage.removeItem('pending_qr_token'); // se consume una sola vez
   setTimeout(consultarQR, 400);
 }
 

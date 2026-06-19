@@ -108,9 +108,14 @@ async function registrarPago(req, res) {
     await client.query('BEGIN');
 
     const alq = await client.query('SELECT * FROM alquileres WHERE id=$1', [id]);
-    if (!alq.rows.length) return res.status(404).json({ error: 'Alquiler no encontrado' });
-    if (alq.rows[0].estado !== 'pendiente_pago')
+    if (!alq.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Alquiler no encontrado' });
+    }
+    if (alq.rows[0].estado !== 'pendiente_pago') {
+      await client.query('ROLLBACK');
       return res.status(400).json({ error: 'El alquiler no está en estado pendiente_pago' });
+    }
 
     await client.query(
       `INSERT INTO pagos (alquiler_id, monto, metodo, registrado_por) VALUES ($1,$2,$3,$4)`,
@@ -212,9 +217,10 @@ async function escanearQR(req, res) {
 
     const alq = r.rows[0];
     const transiciones = {
-      confirmado: 'entregado',
-      entregado:  'recogido',
-      recogido:   'en_revision',
+      pendiente_pago: 'entregado',   // ← consistente con avanzarEstadoQR
+      confirmado:     'entregado',
+      entregado:      'recogido',
+      recogido:       'en_revision',
     };
     const siguiente = transiciones[alq.estado] || null;
 
@@ -232,12 +238,23 @@ async function avanzarEstadoQR(req, res) {
     await client.query('BEGIN');
 
     const r = await client.query('SELECT * FROM alquileres WHERE qr_token=$1 FOR UPDATE', [qr_token]);
-    if (!r.rows.length) return res.status(404).json({ error: 'QR no encontrado' });
+    if (!r.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'QR no encontrado' });
+    }
 
     const alq = r.rows[0];
-    const transiciones = { confirmado:'entregado', entregado:'recogido', recogido:'en_revision' };
+    const transiciones = {
+      pendiente_pago: 'entregado',   // ← nueva transición: permite procesar el QR recién creado
+      confirmado:     'entregado',
+      entregado:      'recogido',
+      recogido:       'en_revision',
+    };
     const siguiente = transiciones[alq.estado];
-    if (!siguiente) return res.status(400).json({ error: 'No hay transición disponible para este estado' });
+    if (!siguiente) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'No hay transición disponible para este estado' });
+    }
 
     await client.query(
       'UPDATE alquileres SET estado=$1, updated_at=NOW() WHERE id=$2', [siguiente, alq.id]
@@ -269,9 +286,14 @@ async function registrarRevision(req, res) {
     await client.query('BEGIN');
 
     const alq = await client.query('SELECT * FROM alquileres WHERE id=$1', [id]);
-    if (!alq.rows.length) return res.status(404).json({ error: 'Alquiler no encontrado' });
-    if (alq.rows[0].estado !== 'recogido')
+    if (!alq.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Alquiler no encontrado' });
+    }
+    if (alq.rows[0].estado !== 'recogido') {
+      await client.query('ROLLBACK');
       return res.status(400).json({ error: 'El alquiler debe estar en estado "recogido"' });
+    }
 
     const alqItems = await client.query('SELECT * FROM alquiler_items WHERE alquiler_id=$1', [id]);
 
