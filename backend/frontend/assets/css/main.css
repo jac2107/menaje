@@ -262,6 +262,7 @@ tr:hover td { background: #f8fafc; }
   
   /* 1. Arregla el encabezado amontonado del catálogo */
   .topbar {
+    flex-direction: row;     /* Fuerza fila: título a la izquierda, botón a la derecha */
     flex-wrap: wrap;         /* Si no hay espacio, baja el botón limpiamente */
     gap: 12px;               /* Separa el título del botón si se llegan a tocar */
     align-items: center;

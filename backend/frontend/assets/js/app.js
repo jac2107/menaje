@@ -120,7 +120,26 @@ function markActiveSidebarLink() {
   });
 }
 
+// ─── Menú hamburguesa (sidebar móvil) — global para todas las páginas ────
+function initMenuToggle() {
+  const menuToggle = document.getElementById('menu-toggle');
+  const sidebar = document.querySelector('.sidebar');
+  if (!menuToggle || !sidebar) return;
+
+  menuToggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    sidebar.classList.toggle('open');
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!sidebar.contains(e.target) && sidebar.classList.contains('open')) {
+      sidebar.classList.remove('open');
+    }
+  });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   initSidebarUser();
   markActiveSidebarLink();
+  initMenuToggle();
 });
