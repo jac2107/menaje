@@ -174,14 +174,21 @@ VALUES (
 ); 
 
 -- ============================================================
--- PRODUCTOS INICIALES (Con imagen, descripción y precio)
+-- PRODUCTOS INICIALES (Con tus enlaces de imágenes web reales)
 -- ============================================================
 INSERT INTO productos (nombre, categoria_id, descripcion, precio_unidad, stock_total, foto_url) VALUES
-('Plato Entrada Tendencia Blanco 23cm', 3, 'Plato de loza blanca brillante para entradas o postres. Resiste lavados industriales.', 1.50, 200, '/assets/img/plato-entrada.jpg'),
-('Plato Fondo Redondo Cúpula 27cm', 3, 'Plato llano principal de porcelana reforzada de alta durabilidad.', 2.00, 250, '/assets/img/plato-fondo.jpg'),
-('Copa Flauta Premium para Champagne', 1, 'Copa de cristal fino transparente, capacidad de 180ml, ideal para brindis elegantes.', 1.80, 180, '/assets/img/copa-champagne.jpg'),
-('Copa de Vino Tinto Tradicional', 1, 'Copa de vidrio grueso de 350ml, excelente balance y peso.', 1.60, 300, '/assets/img/copa-vino.jpg'),
-('Vaso Alto Validus 12oz', 2, 'Vaso largo para gaseosas, cocteles o agua. Vidrio templado anticaídas leves.', 1.00, 400, '/assets/img/vaso-alto.jpg'),
-('Tenedor de Mesa Acero Inoxidable', 4, 'Cubierto de acero quirúrgico pulido espejo. Modelo clásico de catering.', 0.80, 500, '/assets/img/tenedor.jpg'),
-('Cuchillo de Carne Sierra Fina', 4, 'Cuchillo con filo duradero para cortes precisos de carnes rojas.', 0.90, 500, '/assets/img/cuchillo.jpg'),
-('Mantel Rectangular Blanco Jacquard', 5, 'Mantel de tela elegante de 3 metros por 1.5 metros, antimanchas y fácil planchado.', 15.00, 50, '/assets/img/mantel-blanco.jpg');
+('Plato Entrada Tendencia Blanco 23cm', 3, 'Plato de loza blanca brillante para entradas o postres. Resiste lavados industriales.', 1.50, 200, 'https://veana.com/wp-content/uploads/2026/04/152K124-D-2.webp'),
+
+('Plato Fondo Redondo Cúpula 27cm', 3, 'Plato llano principal de porcelana reforzada de alta durabilidad.', 2.00, 250, 'https://media.falabella.com/falabellaPE/881333163_2/w=1500,h=1500,fit=cover'),
+
+('Copa Flauta Premium para Champagne', 1, 'Copa de cristal fino transparente, capacidad de 180ml, ideal para brindis elegantes.', 1.80, 180, 'https://http2.mlstatic.com/D_Q_NP_877139-MLU74075250158_012024-O.webp'),
+
+('Copa de Vino Tinto Tradicional', 1, 'Copa de vidrio grueso de 350ml, excelente balance y peso.', 1.60, 300, 'https://www.plattotec.com/wp-content/uploads/2020/11/alquiler-copavinotinto-vidrio2-plattotec.jpg'),
+
+('Vaso Alto Validus 12oz', 2, 'Vaso largo para gaseosas, cocteles o agua. Vidrio templado anticaídas leves.', 1.00, 400, 'https://www.arander.com/cdn/shop/products/6621-vaso-high-ball-sin-centricoat-350-ml-118-oz_800x.jpg?v=1589569849'),
+
+('Tenedor de Mesa Acero Inoxidable', 4, 'Cubierto de acero quirúrgico pulido espejo. Modelo clásico de catering.', 0.80, 500, 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSEWBBxu75JrjTKZeDDGmXmBlJu5f8TzPl9Bg&s'),
+
+('Cuchillo de Carne Sierra Fina', 4, 'Cuchillo con filo duradero para cortes precisos de carnes rojas.', 0.90, 500, 'https://www.cimaco.com.mx/ccstore/v1/images/?source=/file/v1123931467100434678/products/5324554.1.jpg&height=475&width=475'),
+
+('Mantel Rectangular Blanco Jacquard', 5, 'Mantel de tela elegante de 3 metros por 1.5 metros, antimanchas y fácil planchado.', 15.00, 50, 'https://encrypted-tbn1.gstatic.com/shopping?q=tbn:ANd9GcRiM8GH-sLPohUUaChKnA0XzyatIPc58gbFvbOCXvIbN4FJjI59QzK1sVTI4xT8bYe0lIAKAkdQ2FNP0IZLOeR8jzPLD8TmAy11hqVN8hph9qaPZMJ6nMLvUS2C9m8q1sJlD3T6rg');
