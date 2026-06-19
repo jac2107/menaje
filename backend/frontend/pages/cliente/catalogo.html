@@ -24,6 +24,7 @@
   <main class="main-content">
     <div class="topbar">
       <h1>🛒 Catálogo de Productos</h1>
+      <button id="menu-toggle" class="btn-menu-toggle">☰</button>
       <button class="btn btn-primary" onclick="openModal('modal-carrito')" style="position:relative">
         🛒 Ver carrito
         <span class="cart-badge" id="cart-count">0</span>
@@ -213,12 +214,33 @@ async function cargarCategorias() {
 }
 
 // Fechas mínimas = hoy
-const hoy = new Date().toISOString().split('T')[0];
+
+  const hoy = new Date().toISOString().split('T')[0];
 document.getElementById('fecha-entrega').min = hoy;
 document.getElementById('fecha-recojo').min  = hoy;
 
 cargarCategorias();
 cargarCatalogo();
+
+// 👇 AQUÍ PEGAS ESTA LÓGICA PARA EL MENÚ EN CELULARES 👇
+const menuToggle = document.getElementById('menu-toggle');
+const sidebar = document.querySelector('.sidebar');
+
+if (menuToggle && sidebar) {
+  // Abre y cierra el menú al hacer clic en el botón ☰
+  menuToggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    sidebar.classList.toggle('open');
+  });
+
+  // Cierra el menú automáticamente si tocas cualquier otra parte de la pantalla
+  document.addEventListener('click', (e) => {
+    if (!sidebar.contains(e.target) && sidebar.classList.contains('open')) {
+      sidebar.classList.remove('open');
+    }
+  });
+}
+  
 </script>
 </body>
 </html>
