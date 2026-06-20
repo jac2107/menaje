@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Inventario — Menaje</title>
+  <link rel="stylesheet" href="/assets/css/main.css"/>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-brand" style="display:flex;align-items:center;gap:10px"><img src="/assets/img/logo.png" alt="Menaje" width="28" height="28" style="object-fit:contain;flex:none"><span>Menaje</span></div>
+    <a href="/pages/trabajador/mi-cuenta.html" class="sidebar-user" style="display:flex;align-items:center;gap:11px;text-decoration:none;color:inherit;cursor:pointer"><div id="sidebar-user-avatar" style="width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#36ada3,#2f578a);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:#fff;flex:none"></div><div style="min-width:0"><strong id="sidebar-user-name" style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></strong><span id="sidebar-user-rol"></span></div></a>
+    <nav>
+      <a href="/pages/trabajador/dashboard.html"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="12" height="17" rx="2.2"></rect><path d="M9 4V3.2A1.2 1.2 0 0 1 10.2 2h3.6A1.2 1.2 0 0 1 15 3.2V4"></path><path d="M9 10h6M9 14h6M9 18h4"></path></svg></span>Alquileres</a>
+      <a href="/pages/trabajador/inventario.html" class="active"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5z"></path><path d="M3 8l9 5 9-5M12 13v8"></path></svg></span>Inventario</a>
+      <a href="/pages/trabajador/qr-scan.html"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h3v3M14 21h3M21 14v3M21 21h.01"></path></svg></span>Escanear QR</a>
+    </nav>
+    <div class="sidebar-footer"><button onclick="logout()" style="display:flex;align-items:center;justify-content:center;gap:8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>Cerrar sesión</button></div>
+  </aside>
+  <main class="main-content">
+    <div class="topbar"><button id="menu-toggle" class="btn-menu-toggle">☰</button><h1>Inventario</h1></div>
+    <div class="card" style="margin-bottom:12px">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+        <div class="form-group" style="margin:0;flex:1"><label>Buscar</label><input class="form-control" id="q" placeholder="Nombre..." oninput="cargar()"/></div>
+        <div class="form-group" style="margin:0"><label>Categoría</label><select class="form-control" id="cat" onchange="cargar()"><option value="">Todas</option></select></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Producto</th><th>Categoría</th><th>Precio</th><th>Stock Total</th><th>Bajas</th><th>En Eventos</th><th>Disponible</th></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+<script src="/assets/js/app.js"></script>
+<script>
+if (!['trabajador','dueno'].includes(Auth.usuario?.rol)) { location.href='/index.html'; throw new Error('rol'); }
+
+async function cargar() {
+  const q   = document.getElementById('q').value;
+  const cat = document.getElementById('cat').value;
+  let url = '/productos?';
+  if (q)   url += `q=${encodeURIComponent(q)}&`;
+  if (cat) url += `categoria_id=${cat}`;
+  try {
+    const prods = await apiFetch(url);
+    const tbody = document.getElementById('tbody');
+    if (!prods.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Sin productos</td></tr>'; return; }
+    tbody.innerHTML = prods.map(p => `
+      <tr>
+        <td><strong>${p.nombre}</strong></td>
+        <td>${p.categoria}</td>
+        <td>${sol(p.precio_unidad)}</td>
+        <td>${p.stock_total}</td>
+        <td style="color:var(--danger)">${p.stock_baja}</td>
+        <td style="color:var(--warn)">${p.en_eventos}</td>
+        <td><strong style="color:${p.disponible<=5?'var(--danger)':'var(--success)'}">${p.disponible}</strong></td>
+      </tr>`).join('');
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function cargarCategorias() {
+  const cats = await apiFetch('/categorias');
+  const sel = document.getElementById('cat');
+  cats.forEach(c => sel.innerHTML += `<option value="${c.id}">${c.nombre}</option>`);
+}
+
+cargarCategorias();
+cargar();
+</script>
+</body>
+</html>

@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Inventario — Dueño — Menaje</title>
+  <link rel="stylesheet" href="/assets/css/main.css"/>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-brand" style="display:flex;align-items:center;gap:10px"><img src="/assets/img/logo.png" alt="Menaje" width="28" height="28" style="object-fit:contain;flex:none"><span>Menaje</span></div>
+    <a href="/pages/dueno/mi-cuenta.html" class="sidebar-user" style="display:flex;align-items:center;gap:11px;text-decoration:none;color:inherit;cursor:pointer"><div id="sidebar-user-avatar" style="width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#36ada3,#2f578a);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:#fff;flex:none"></div><div style="min-width:0"><strong id="sidebar-user-name" style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></strong><span id="sidebar-user-rol"></span></div></a>
+    <nav>
+      <a href="/pages/dueno/dashboard.html"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.6"></rect><rect x="14" y="3" width="7" height="7" rx="1.6"></rect><rect x="3" y="14" width="7" height="7" rx="1.6"></rect><rect x="14" y="14" width="7" height="7" rx="1.6"></rect></svg></span>Dashboard</a>
+      <a href="/pages/dueno/alquileres.html"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="12" height="17" rx="2.2"></rect><path d="M9 4V3.2A1.2 1.2 0 0 1 10.2 2h3.6A1.2 1.2 0 0 1 15 3.2V4"></path><path d="M9 10h6M9 14h6M9 18h4"></path></svg></span>Alquileres</a>
+      <a href="/pages/dueno/inventario.html" class="active"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5z"></path><path d="M3 8l9 5 9-5M12 13v8"></path></svg></span>Inventario</a>
+      <a href="/pages/dueno/usuarios.html"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1"></path><circle cx="9.5" cy="8" r="3.2"></circle><path d="M21 19v-1a4 4 0 0 0-3-3.8M16.5 5.2a3.2 3.2 0 0 1 0 5.6"></path></svg></span>Usuarios</a>
+      <a href="/pages/dueno/descuentos.html"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"></line><circle cx="7" cy="7" r="2.3"></circle><circle cx="17" cy="17" r="2.3"></circle></svg></span>Descuentos</a>
+      <a href="/pages/dueno/reportes.html"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="20" x2="6" y2="12"></line><line x1="12" y1="20" x2="12" y2="5"></line><line x1="18" y1="20" x2="18" y2="9"></line></svg></span>Reportes</a>
+      <a href="/pages/dueno/configuracion.html"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="8" x2="20" y2="8"></line><line x1="4" y1="16" x2="20" y2="16"></line><circle cx="9" cy="8" r="2.4"></circle><circle cx="15" cy="16" r="2.4"></circle></svg></span>Configuración</a>
+    </nav>
+    <div class="sidebar-footer"><button onclick="logout()" style="display:flex;align-items:center;justify-content:center;gap:8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>Cerrar sesión</button></div>
+  </aside>
+  <main class="main-content">
+    <div class="topbar">
+      <button id="menu-toggle" class="btn-menu-toggle">☰</button>
+      <h1>Inventario</h1>
+      <button class="btn btn-primary" onclick="openModal('modal-nuevo')">+ Nuevo Producto</button>
+    </div>
+    <div class="card" style="margin-bottom:12px">
+      <div class="form-group" style="margin:0;max-width:320px"><label>Buscar</label><input class="form-control" id="q" oninput="cargar()"/></div>
+    </div>
+    <div class="filter-chips" id="filtro-cat">
+      <button type="button" class="filter-chip active" data-val="">Todas</button>
+    </div>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Imagen</th><th>Producto</th><th>Categoría</th><th>Precio</th><th>Total</th><th>Bajas</th><th>Eventos</th><th>Disponible</th><th>Ajustar</th></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="modal-overlay" id="modal-nuevo">
+  <div class="modal">
+    <div class="modal-header"><h2>+ Nuevo Producto</h2><button class="modal-close" onclick="closeModal('modal-nuevo')">×</button></div>
+    <div class="form-row">
+      <div class="form-group"><label>Nombre</label><input class="form-control" id="n-nombre"/></div>
+      <div class="form-group"><label>Categoría</label><select class="form-control" id="n-cat"></select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Precio/unidad (S/)</label><input type="number" class="form-control" id="n-precio" step="0.01"/></div>
+      <div class="form-group"><label>Stock inicial</label><input type="number" class="form-control" id="n-stock" value="0"/></div>
+    </div>
+    <div class="form-group"><label>Descripción</label><textarea class="form-control" id="n-desc" rows="2"></textarea></div>
+    <div class="form-group"><label>URL de foto (opcional)</label><input class="form-control" id="n-foto" placeholder="https://..."/></div>
+    <button class="btn btn-success" style="width:100%;justify-content:center" onclick="crearProducto()">Crear Producto</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-stock">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header"><h2>Ajustar Stock</h2><button class="modal-close" onclick="closeModal('modal-stock')">×</button></div>
+    <input type="hidden" id="s-id"/>
+    <div id="s-nombre" style="font-weight:600;margin-bottom:14px"></div>
+    <div class="form-group"><label>Tipo de ajuste</label>
+      <select class="form-control" id="s-tipo">
+        <option value="entrada">Entrada (sumar al stock total)</option>
+        <option value="baja">Baja (marcar como dañadas)</option>
+        <option value="correccion">Corrección (reemplazar stock total)</option>
+      </select>
+    </div>
+    <div class="form-group"><label>Cantidad</label><input type="number" class="form-control" id="s-cantidad" min="1"/></div>
+    <div class="form-group"><label>Motivo</label><input class="form-control" id="s-motivo" placeholder="Ej: Compra de nuevas piezas..."/></div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="guardarStock()">Guardar Ajuste</button>
+  </div>
+</div>
+
+<script src="/assets/js/app.js"></script>
+<script>
+if (!Auth.requireAuth('dueno')) throw new Error('no auth');
+
+let categoriaFiltro = '';
+
+async function cargarCategorias() {
+  const cats = await apiFetch('/categorias');
+
+  const nSel = document.getElementById('n-cat');
+  cats.forEach(c => nSel.innerHTML += `<option value="${c.id}">${c.nombre}</option>`);
+
+  const cont = document.getElementById('filtro-cat');
+  cats.forEach(c => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'filter-chip';
+    btn.dataset.val = c.id;
+    btn.textContent = c.nombre;
+    cont.appendChild(btn);
+  });
+  cont.querySelectorAll('.filter-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      cont.querySelectorAll('.filter-chip').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      categoriaFiltro = btn.dataset.val;
+      cargar();
+    });
+  });
+}
+
+
+async function cargar() {
+  const q   = document.getElementById('q').value;
+  let url = '/productos?';
+  if (q) url += `q=${encodeURIComponent(q)}&`;
+  if (categoriaFiltro) url += `categoria_id=${categoriaFiltro}`;
+  
+  try {
+    const prods = await apiFetch(url);
+    document.getElementById('tbody').innerHTML = prods.map(p => `
+      <tr>
+        <td>
+          <img src="${p.foto_url || 'https://placehold.co/50x50?text=Sin+Foto'}" 
+               alt="${p.nombre}" 
+               style="width: 50px; height: 50px; object-fit: cover; border-radius: 6px; border: 1px solid #ddd;"
+               onerror="this.src='https://placehold.co/50x50?text=Sin+Foto'">
+        </td>
+        
+        <td><strong>${p.nombre}</strong>${p.descripcion ? `<br/><small style="color:var(--text-muted)">${p.descripcion}</small>` : ''}</td>
+        <td>${p.categoria}</td>
+        <td>${sol(p.precio_unidad)}</td>
+        <td>${p.stock_total}</td>
+        <td style="color:var(--danger)">${p.stock_baja}</td>
+        <td style="color:var(--warn)">${p.en_eventos}</td>
+        <td><strong style="color:${p.disponible <= 5 ? 'var(--danger)' : 'var(--success)'}">${p.disponible}</strong></td>
+        <td><button class="btn btn-outline btn-sm" onclick="abrirStock(${p.id},'${p.nombre}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg></button></td>
+      </tr>`).join('');
+  } catch(e) { 
+    toast(e.message, 'error'); 
+  }
+}
+
+
+async function crearProducto() {
+  const payload = {
+    nombre: document.getElementById('n-nombre').value.trim(),
+    categoria_id: parseInt(document.getElementById('n-cat').value),
+    precio_unidad: parseFloat(document.getElementById('n-precio').value),
+    stock_inicial: parseInt(document.getElementById('n-stock').value) || 0,
+    descripcion: document.getElementById('n-desc').value.trim(),
+    foto_url: document.getElementById('n-foto').value.trim() || null
+  };
+  
+  if (!payload.nombre || !payload.categoria_id || isNaN(payload.precio_unidad)) {
+    return toast('Completa los campos obligatorios', 'warn');
+  }
+  
+  try {
+    // Se usa la función global apiFetch que ya gestiona las cabeceras y el token automáticamente
+    await apiFetch('/productos', { method: 'POST', body: JSON.stringify(payload) });
+    toast('Producto creado con éxito'); 
+    closeModal('modal-nuevo'); 
+    
+    // Limpiar el formulario del modal
+    document.getElementById('n-nombre').value = '';
+    document.getElementById('n-precio').value = '';
+    document.getElementById('n-stock').value = '0';
+    document.getElementById('n-desc').value = '';
+    document.getElementById('n-foto').value = '';
+    
+    cargar();
+  } catch(e) { 
+    toast(e.message, 'error'); 
+  }
+}
+
+function abrirStock(id, nombre) {
+  document.getElementById('s-id').value = id;
+  document.getElementById('s-nombre').textContent = nombre;
+  // Limpiar inputs del modal de stock
+  document.getElementById('s-cantidad').value = '';
+  document.getElementById('s-motivo').value = '';
+  openModal('modal-stock');
+}
+
+async function guardarStock() {
+  const id = document.getElementById('s-id').value;
+  const tipo = document.getElementById('s-tipo').value;
+  const cantidad = parseInt(document.getElementById('s-cantidad').value);
+  const motivo = document.getElementById('s-motivo').value.trim();
+  
+  if (!cantidad || cantidad <= 0) return toast('Ingrese una cantidad válida', 'warn');
+  
+  try {
+    // Se mapea a PATCH /productos/:id/stock como espera tu controlador
+    const r = await apiFetch(`/productos/${id}/stock`, { 
+      method: 'PATCH', 
+      body: JSON.stringify({ tipo, cantidad, motivo }) 
+    });
+    toast(`Stock actualizado. Total: ${r.stock_total} | Bajas: ${r.stock_baja}`);
+    closeModal('modal-stock'); 
+    cargar();
+  } catch(e) { 
+    toast(e.message, 'error'); 
+  }
+}
+
+// Inicialización de la página
+cargarCategorias();
+cargar();
+</script>
+</body>
+</html>

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Menaje — Iniciar Sesión</title>
+  <link rel="stylesheet" href="/assets/css/main.css" />
+  <script src="/assets/js/warp-bg.js"></script>
+</head>
+<body>
+<div class="auth-container">
+  <warp-bg></warp-bg>
+  <div style="position:absolute;inset:0;z-index:1;background:radial-gradient(80% 70% at 50% 50%, rgba(8,10,40,.15) 0%, rgba(7,9,32,.55) 100%);pointer-events:none"></div>
+  <div class="auth-card" style="position:relative;z-index:2">
+    <div class="auth-logo">
+      <div style="width:72px;height:72px;border-radius:20px;margin:0 auto 14px;background:linear-gradient(155deg,rgba(54,173,163,.18),rgba(47,87,138,.12));border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;box-shadow:inset 0 1px 0 rgba(255,255,255,.1),0 12px 30px -14px rgba(0,0,0,.6)">
+        <img src="/assets/img/logo.png" alt="Menaje" style="width:46px;height:46px;object-fit:contain">
+      </div>
+      <h1>Menaje</h1>
+      <p>Sistema de Gestión de Alquiler</p>
+    </div>
+
+    <!-- Tabs -->
+    <div style="display:flex;gap:8px;margin-bottom:24px;">
+      <button class="btn btn-primary" id="tab-login" onclick="showTab('login')" style="flex:1">Iniciar Sesión</button>
+      <button class="btn btn-outline" id="tab-reg"   onclick="showTab('registro')" style="flex:1">Registrarse</button>
+    </div>
+
+    <!-- LOGIN -->
+    <div id="form-login">
+      <div class="form-group">
+        <label>Correo electrónico</label>
+        <input type="email" class="form-control" id="login-correo" placeholder="correo@ejemplo.com" />
+      </div>
+      <div class="form-group">
+        <label>Contraseña</label>
+        <input type="password" class="form-control" id="login-pass" placeholder="••••••••" />
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:-8px">
+        <a href="#" onclick="return false" style="font-size:12.5px;font-weight:600;color:var(--accent);text-decoration:none">¿Olvidaste tu contraseña?</a>
+      </div>
+      <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="doLogin()">Entrar</button>
+    </div>
+
+    <!-- REGISTRO -->
+    <div id="form-registro" style="display:none">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Nombre completo</label>
+          <input type="text" class="form-control" id="reg-nombre" placeholder="Juan Pérez" />
+        </div>
+        <div class="form-group">
+          <label>DNI</label>
+          <input type="text" class="form-control" id="reg-dni" placeholder="12345678" maxlength="8" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Teléfono</label>
+        <input type="tel" class="form-control" id="reg-tel" placeholder="987654321" />
+      </div>
+      <div class="form-group">
+        <label>Correo electrónico</label>
+        <input type="email" class="form-control" id="reg-correo" placeholder="correo@ejemplo.com" />
+      </div>
+      <div class="form-group">
+        <label>Contraseña</label>
+        <input type="password" class="form-control" id="reg-pass" placeholder="Mínimo 8 caracteres" />
+      </div>
+      <button class="btn btn-success" style="width:100%;justify-content:center" onclick="doRegistro()">Crear cuenta</button>
+    </div>
+  </div>
+</div>
+
+<script src="/assets/js/app.js"></script>
+<script>
+  // Redirigir si ya hay sesión
+  if (Auth.token && Auth.usuario) {
+    const rol = Auth.usuario.rol;
+    if (rol === 'cliente')     location.href = '/pages/cliente/catalogo.html';
+    if (rol === 'trabajador')  location.href = '/pages/trabajador/dashboard.html';
+    if (rol === 'dueno')       location.href = '/pages/dueno/dashboard.html';
+  }
+
+  function showTab(tab) {
+    document.getElementById('form-login').style.display    = tab === 'login'    ? '' : 'none';
+    document.getElementById('form-registro').style.display = tab === 'registro' ? '' : 'none';
+    document.getElementById('tab-login').className = tab === 'login'    ? 'btn btn-primary' : 'btn btn-outline';
+    document.getElementById('tab-reg').className   = tab === 'registro' ? 'btn btn-primary' : 'btn btn-outline';
+  }
+
+  async function doLogin() {
+    const correo   = document.getElementById('login-correo').value.trim();
+    const password = document.getElementById('login-pass').value;
+    try {
+      const data = await apiFetch('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ correo, password })
+      });
+      Auth.save(data.token, data.usuario);
+      const rol = data.usuario.rol;
+
+      // 👇 Si venía de escanear un QR sin sesión, lo regresamos al escáner con el token intacto
+      const pendingQr = localStorage.getItem('pending_qr_token');
+      if (pendingQr && ['trabajador','dueno'].includes(rol)) {
+        localStorage.removeItem('pending_qr_token');
+        location.href = `/pages/trabajador/qr-scan.html?token=${pendingQr}`;
+        return; // evita que siga a las redirecciones normales de abajo
+      }
+
+      if (rol === 'cliente')    location.href = '/pages/cliente/catalogo.html';
+      if (rol === 'trabajador') location.href = '/pages/trabajador/dashboard.html';
+      if (rol === 'dueno')      location.href = '/pages/dueno/dashboard.html';
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  }
+
+  async function doRegistro() {
+    const payload = {
+      nombre:   document.getElementById('reg-nombre').value.trim(),
+      dni:      document.getElementById('reg-dni').value.trim(),
+      telefono: document.getElementById('reg-tel').value.trim(),
+      correo:   document.getElementById('reg-correo').value.trim(),
+      password: document.getElementById('reg-pass').value
+    };
+    if (!payload.nombre || !payload.dni || !payload.correo || !payload.password)
+      return toast('Completa todos los campos', 'warn');
+    try {
+      await apiFetch('/auth/registrar', { method: 'POST', body: JSON.stringify(payload) });
+      toast('Cuenta creada. Ahora inicia sesión.');
+      showTab('login');
+      document.getElementById('login-correo').value = payload.correo;
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  }
+
+  // Enter en password = login
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin();
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Dashboard Trabajador — Menaje</title>
+  <link rel="stylesheet" href="/assets/css/main.css"/>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-brand" style="display:flex;align-items:center;gap:10px"><img src="/assets/img/logo.png" alt="Menaje" width="28" height="28" style="object-fit:contain;flex:none"><span>Menaje</span></div>
+    <a href="/pages/trabajador/mi-cuenta.html" class="sidebar-user" style="display:flex;align-items:center;gap:11px;text-decoration:none;color:inherit;cursor:pointer"><div id="sidebar-user-avatar" style="width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#36ada3,#2f578a);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:#fff;flex:none"></div><div style="min-width:0"><strong id="sidebar-user-name" style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></strong><span id="sidebar-user-rol"></span></div></a>
+    <nav>
+      <a href="/pages/trabajador/dashboard.html" class="active"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="12" height="17" rx="2.2"></rect><path d="M9 4V3.2A1.2 1.2 0 0 1 10.2 2h3.6A1.2 1.2 0 0 1 15 3.2V4"></path><path d="M9 10h6M9 14h6M9 18h4"></path></svg></span>Alquileres</a>
+      <a href="/pages/trabajador/inventario.html"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5z"></path><path d="M3 8l9 5 9-5M12 13v8"></path></svg></span>Inventario</a>
+      <a href="/pages/trabajador/qr-scan.html"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h3v3M14 21h3M21 14v3M21 21h.01"></path></svg></span>Escanear QR</a>
+    </nav>
+    <div class="sidebar-footer"><button onclick="logout()" style="display:flex;align-items:center;justify-content:center;gap:8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>Cerrar sesión</button></div>
+  </aside>
+
+  <main class="main-content">
+    <div class="topbar">
+      <button id="menu-toggle" class="btn-menu-toggle">☰</button>
+      <h1>Alquileres Activos</h1></div>
+
+    <!-- Filtros -->
+    <div class="card" style="margin-bottom:16px">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+        <div class="form-group" style="margin:0;flex:1;min-width:160px">
+          <label>Buscar cliente</label>
+          <input class="form-control" id="q" placeholder="Nombre..." oninput="cargar()"/>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>Estado</label>
+          <select class="form-control" id="estado" onchange="cargar()">
+            <option value="">Todos</option>
+            <option value="confirmado">Confirmado</option>
+            <option value="entregado">Entregado</option>
+            <option value="recogido">Recogido</option>
+            <option value="en_revision">En revisión</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>Desde</label>
+          <input type="date" class="form-control" id="desde" onchange="cargar()"/>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>Hasta</label>
+          <input type="date" class="form-control" id="hasta" onchange="cargar()"/>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Cliente</th><th>Entrega</th><th>Recojo</th><th>Total</th><th>Estado</th><th>Acciones</th></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- MODAL DETALLE -->
+<div class="modal-overlay" id="modal-detalle">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-header"><h2>Detalle del Alquiler</h2><button class="modal-close" onclick="closeModal('modal-detalle')">×</button></div>
+    <div id="detalle-body"></div>
+  </div>
+</div>
+
+<script src="/assets/js/app.js"></script>
+<script>
+if (!Auth.requireAuth('trabajador')) throw new Error('no auth');
+
+async function cargar() {
+  const q      = document.getElementById('q').value;
+  const estado = document.getElementById('estado').value;
+  const desde  = document.getElementById('desde').value;
+  const hasta  = document.getElementById('hasta').value;
+  let url = '/alquileres?';
+  if (q)      url += `q=${encodeURIComponent(q)}&`;
+  if (estado) url += `estado=${estado}&`;
+  if (desde)  url += `desde=${desde}&`;
+  if (hasta)  url += `hasta=${hasta}`;
+  try {
+    const alqs = await apiFetch(url);
+    const tbody = document.getElementById('tbody');
+    if (!alqs.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">Sin alquileres con esos filtros</td></tr>'; return; }
+    tbody.innerHTML = alqs.map(a => `
+      <tr>
+        <td><strong>${a.cliente_nombre}</strong><br/><small style="color:var(--text-muted)">${a.cliente_telefono||''}</small></td>
+        <td>${fmtFecha(a.fecha_entrega)}</td>
+        <td>${fmtFecha(a.fecha_recojo)}</td>
+        <td>${sol(a.total)}</td>
+        <td>${badgeEstado(a.estado)}</td>
+        <td style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-outline btn-sm" onclick="verDetalle(${a.id})"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.5" y2="16.5"></line></svg></button>
+          ${a.estado === 'confirmado' || a.estado === 'entregado' || a.estado === 'recogido'
+            ? `<a href="/pages/trabajador/qr-scan.html" class="btn btn-primary btn-sm">QR</a>`:''}
+          ${a.estado === 'recogido' ? `<a href="/pages/trabajador/revision.html?id=${a.id}" class="btn btn-outline btn-sm">Revisión</a>`:''}
+        </td>
+      </tr>`).join('');
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function verDetalle(id) {
+  try {
+    const a = await apiFetch(`/alquileres/${id}`);
+    document.getElementById('detalle-body').innerHTML = `
+      <p><strong>Cliente:</strong> ${a.cliente_nombre} | ${a.cliente_correo}</p>
+      <p><strong>Teléfono:</strong> ${a.cliente_telefono||'—'}</p>
+      <p><strong>Dirección:</strong> ${a.direccion_evento}</p>
+      <p><strong>Entrega:</strong> ${fmtFecha(a.fecha_entrega)} &nbsp; <strong>Recojo:</strong> ${fmtFecha(a.fecha_recojo)}</p>
+      <p><strong>Estado:</strong> ${badgeEstado(a.estado)}</p>
+      <table style="margin-top:12px">
+        <thead><tr><th>Producto</th><th>Cant.</th><th>Precio</th><th>Sub.</th></tr></thead>
+        <tbody>${a.items.map(i=>`<tr><td>${i.nombre}</td><td>${i.cantidad}</td><td>${sol(i.precio_unit)}</td><td>${sol(i.subtotal)}</td></tr>`).join('')}</tbody>
+      </table>
+      <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between"><span>Subtotal</span><span>${sol(a.subtotal)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>Descuento</span><span>-${sol(a.descuento_monto)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>Garantía</span><span>${sol(a.garantia)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:700"><span>TOTAL</span><span>${sol(a.total)}</span></div>
+      </div>`;
+    openModal('modal-detalle');
+  } catch(e) { toast(e.message,'error'); }
+}
+
+cargar();
+</script>
+</body>
+</html>

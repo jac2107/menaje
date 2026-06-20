@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>pagora · checkout</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:#eef0f3;font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;color:#15171b}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  input:focus{outline:none}
+  .toast-container{position:fixed;top:18px;right:18px;z-index:99999;display:flex;flex-direction:column;gap:8px}
+  .toast{background:#15171b;color:#fff;padding:10px 16px;border-radius:9px;font-size:13px;box-shadow:0 8px 24px -10px rgba(0,0,0,.4)}
+  .toast-error{background:#b3261e}
+  .toast-warn{background:#c2731a}
+</style>
+</head>
+<body>
+<div style="min-height:100vh;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:40px 20px 56px;">
+  <div style="width:100%;max-width:1040px;display:flex;flex-direction:column;gap:14px;">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:0 4px;">
+      <div style="display:flex;align-items:baseline;gap:9px;">
+        <span style="font-size:21px;font-weight:800;letter-spacing:-0.02em;color:#15171b;">pagora</span>
+        <span style="width:7px;height:7px;border-radius:50%;background:#2563eb;display:inline-block;align-self:center;"></span>
+        <span style="font-size:12px;font-weight:600;color:#8a909a;letter-spacing:0.12em;text-transform:uppercase;">checkout</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:7px;color:#5b626c;">
+        <span style="width:16px;height:16px;border-radius:4px;background:#e3f4ea;display:flex;align-items:center;justify-content:center;color:#137a45;font-size:10px;font-weight:900;">✓</span>
+        <span style="font-size:12.5px;color:#6b727c;font-weight:500;">Conexión segura</span>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;background:#ffffff;border:1px solid #e7e9ed;border-radius:18px;overflow:hidden;box-shadow:0 18px 50px -28px rgba(20,26,40,0.28),0 2px 6px rgba(20,26,40,0.04);">
+      <aside id="aside" style="flex:1 1 330px;min-width:300px;background:#fafbfc;border-right:1px solid #ecedf1;padding:30px 30px 26px;display:flex;flex-direction:column;"></aside>
+      <main id="main" style="flex:2 1 440px;min-width:320px;padding:30px 32px 32px;display:flex;flex-direction:column;"></main>
+    </div>
+
+    <div style="text-align:center;font-size:11.5px;color:#9aa0aa;padding:2px 0;">Procesado de forma segura por <strong style="color:#6b727c;font-weight:700;">pagora</strong> · Esta es una vista de demostración</div>
+  </div>
+</div>
+
+<script src="/assets/js/app.js"></script>
+<script>
+if (!Auth.requireAuth('cliente')) throw new Error('no auth');
+
+const pedidoRaw = sessionStorage.getItem('pedido_pendiente');
+if (!pedidoRaw) { location.href = '/pages/cliente/catalogo.html'; throw new Error('sin pedido'); }
+const pedido = JSON.parse(pedidoRaw);
+
+const ACCENT = '#2563eb';
+const MERCHANT = 'Menaje';
+const ORDER_REF = 'PED-' + Date.now().toString().slice(-6);
+const subtotal = pedido.items.reduce((s,x) => s + x.precio_unidad * x.cantidad, 0);
+
+const state = { step:'select', method:'yape', secondsLeft:900, paid:false, processing:false, copied:false,
+  card:{ number:'', exp:'', cvv:'', name:'' }, alquiler:null };
+
+let timer = setInterval(() => {
+  state.secondsLeft = Math.max(0, state.secondsLeft - 1);
+  const t = document.getElementById('timer-val');
+  if (t) t.textContent = fmtTimer(state.secondsLeft);
+}, 1000);
+
+function fmtTimer(s){ const m=Math.floor(s/60), q=s%60; return (m<10?'0':'')+m+':'+(q<10?'0':'')+q; }
+function hexA(hex,a){ const h=hex.replace('#',''); const r=parseInt(h.substring(0,2),16),g=parseInt(h.substring(2,4),16),b=parseInt(h.substring(4,6),16); return 'rgba('+r+','+g+','+b+','+a+')'; }
+
+function buildQrCells(){
+  const n = 23, cells = [];
+  const reg = (r,c,sr,sc) => { const rr=r-sr, cc=c-sc; if(rr<0||rr>6||cc<0||cc>6) return null;
+    if(rr===0||rr===6||cc===0||cc===6) return true; if(rr>=2&&rr<=4&&cc>=2&&cc<=4) return true; return false; };
+  for (let r=0;r<n;r++) for (let c=0;c<n;c++) {
+    let on; const a=reg(r,c,0,0), b=reg(r,c,0,n-7), d=reg(r,c,n-7,0);
+    if (a!==null) on=a; else if (b!==null) on=b; else if (d!==null) on=d;
+    else { const hsh=((Math.imul(r+3,2654435761)^Math.imul(c+7,40503))>>>0)%100; on = hsh<46; }
+    cells.push(on);
+  }
+  return cells;
+}
+
+const METHODS = [
+  { id:'yape', name:'Yape', desc:'Escanea un QR y paga al instante', icon:'letter', glyph:'Y', bg:'#efe3f5', fg:'#7A2D8F' },
+  { id:'plin', name:'Plin', desc:'Paga desde la app de tu banco', icon:'letter', glyph:'P', bg:'#d6f3f3', fg:'#008f94' },
+  { id:'tarjeta', name:'Tarjeta de crédito o débito', desc:'Visa, Mastercard y más', icon:'card', bg:'#eef1f6', fg:'#334155' },
+  { id:'efectivo', name:'Pago en efectivo', desc:'Agentes, bodegas y bancos', icon:'cash', bg:'#e3f4ea', fg:'#137a45' },
+  { id:'billetera', name:'Billeteras digitales', desc:'PagoEfectivo y otras apps', icon:'wallet', bg:'#e8e9fb', fg:'#3f3fb0' },
+];
+const NOTES = {
+  yape:'Te mostraremos un código QR y un número para que pagues desde la app de Yape en segundos.',
+  plin:'Genera el QR y págalo con Plin desde la banca móvil de tu banco afiliado.',
+  efectivo:'Generaremos un código de pago para que abones en efectivo en agentes, bodegas y bancos.',
+  billetera:'Recibirás un código CIP para pagar desde PagoEfectivo u otra billetera digital.',
+};
+
+function btnStyle(){
+  return `width:100%;height:50px;margin-top:22px;border:none;border-radius:12px;background:${ACCENT};color:#fff;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;letter-spacing:-0.01em;box-shadow:0 8px 20px -10px ${hexA(ACCENT,0.6)};`;
+}
+
+function renderAside(){
+  document.getElementById('aside').innerHTML = `
+    <div style="font-size:11px;font-weight:700;letter-spacing:0.13em;text-transform:uppercase;color:#9aa0aa;">Estás pagando a</div>
+    <div style="margin-top:7px;font-size:18px;font-weight:700;color:#15171b;letter-spacing:-0.01em;">${MERCHANT}</div>
+    <div style="margin-top:3px;font-size:13px;color:#8a909a;">Pedido ${ORDER_REF} · Alquiler de menaje</div>
+    <div style="height:1px;background:#ecedf1;margin:22px 0 16px;"></div>
+    <div style="display:flex;flex-direction:column;gap:13px;">
+      ${pedido.items.map(it => `
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;">
+          <div style="display:flex;align-items:baseline;gap:8px;min-width:0;">
+            <span style="font-size:13.5px;color:#3a3f48;font-weight:500;">${it.nombre}</span>
+            <span style="font-size:12px;color:#a2a8b2;font-weight:500;white-space:nowrap;">×${it.cantidad}</span>
+          </div>
+          <span style="font-size:13.5px;color:#3a3f48;font-weight:600;white-space:nowrap;">${sol(it.precio_unidad * it.cantidad)}</span>
+        </div>`).join('')}
+    </div>
+    <div style="height:1px;background:#ecedf1;margin:18px 0 14px;"></div>
+    <div style="font-size:12.5px;color:#a2a8b2;line-height:1.5;">Garantía y descuentos se calculan al confirmar el pago.</div>
+    <div style="margin-top:18px;display:flex;align-items:flex-end;justify-content:space-between;">
+      <span style="font-size:14px;font-weight:600;color:#15171b;">Subtotal</span>
+      <span style="font-size:27px;font-weight:800;letter-spacing:-0.02em;color:#15171b;">${sol(subtotal)}</span>
+    </div>
+    <div style="margin-top:20px;display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #ecedf1;border-radius:11px;padding:11px 13px;">
+      <span style="width:30px;height:30px;border-radius:8px;background:#fff3e6;color:#c2731a;display:flex;align-items:center;justify-content:center;font-size:15px;flex:none;">⏱</span>
+      <div style="display:flex;flex-direction:column;line-height:1.25;">
+        <span style="font-size:11.5px;color:#9aa0aa;font-weight:600;">El pedido se reserva por</span>
+        <span id="timer-val" style="font-size:15px;font-weight:700;color:#15171b;font-variant-numeric:tabular-nums;">${fmtTimer(state.secondsLeft)}</span>
+      </div>
+    </div>
+    <div style="flex:1;"></div>
+    <div style="margin-top:22px;display:flex;align-items:center;gap:8px;">
+      <span style="width:15px;height:15px;border-radius:4px;background:#eef1f6;color:#7d8089;display:flex;align-items:center;justify-content:center;font-size:9px;">🔒</span>
+      <span style="font-size:11.5px;color:#a2a8b2;line-height:1.4;">Tus datos viajan cifrados. pagora no comparte tu información de pago.</span>
+    </div>`;
+}
+
+function renderSelect(){
+  const sel = state.method;
+  const isCard = sel === 'tarjeta';
+  const tiles = METHODS.map(m => {
+    const s = m.id === sel;
+    const badge = m.icon === 'letter'
+      ? `<span style="font-style:italic">${m.glyph}</span>`
+      : m.icon === 'card'
+      ? `<span style="width:26px;height:18px;border-radius:4px;border:2px solid currentColor;position:relative;display:block;"><span style="position:absolute;left:0;right:0;top:4px;height:3px;background:currentColor;"></span></span>`
+      : m.icon === 'cash'
+      ? `<span style="font-size:15px;font-weight:800;">S/</span>`
+      : `<span style="width:26px;height:19px;border-radius:5px;border:2px solid currentColor;position:relative;display:block;"><span style="position:absolute;right:-2px;top:5px;width:7px;height:7px;border-radius:50%;background:currentColor;"></span></span>`;
+    return `
+      <div onclick="selectMethod('${m.id}')" style="display:flex;align-items:center;gap:14px;padding:13px 15px;border:1px solid ${s?ACCENT:'#e6e7ea'};border-radius:14px;cursor:pointer;background:${s?hexA(ACCENT,0.045):'#fff'};transition:background .15s,border-color .15s,box-shadow .15s;box-shadow:${s?('0 0 0 3px '+hexA(ACCENT,0.12)):'none'};">
+        <div style="width:44px;height:44px;border-radius:12px;background:${m.bg};color:${m.fg};flex:none;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;">${badge}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:14.5px;font-weight:600;color:#15171b;">${m.name}</div>
+          <div style="font-size:12.5px;color:#9aa0aa;margin-top:1px;">${m.desc}</div>
+        </div>
+        <div style="width:20px;height:20px;border-radius:50%;flex:none;border:2px solid ${s?ACCENT:'#cdd2da'};display:flex;align-items:center;justify-content:center;"><span style="width:10px;height:10px;border-radius:50%;background:${ACCENT};transform:${s?'scale(1)':'scale(0)'};transition:transform .15s;"></span></div>
+      </div>`;
+  }).join('');
+
+  const cardForm = isCard ? `
+    <div style="margin-top:18px;border:1px solid #ecedf1;border-radius:14px;padding:18px;background:#fcfcfd;animation:fadeUp .2s ease;">
+      <div style="font-size:13px;font-weight:600;color:#3a3f48;margin-bottom:14px;">Datos de la tarjeta</div>
+      <label style="display:block;font-size:12px;color:#8a909a;margin-bottom:6px;">Número de tarjeta</label>
+      <input id="card-number" value="${state.card.number}" oninput="onCardInput('number',this)" placeholder="0000 0000 0000 0000" inputmode="numeric" maxlength="19" style="width:100%;height:44px;border:1px solid #e1e3e8;border-radius:10px;padding:0 13px;font-size:14px;font-family:inherit;letter-spacing:0.04em;">
+      <div style="display:flex;gap:12px;margin-top:12px;">
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;color:#8a909a;margin-bottom:6px;">Vencimiento</label>
+          <input id="card-exp" value="${state.card.exp}" oninput="onCardInput('exp',this)" placeholder="MM / AA" maxlength="7" style="width:100%;height:44px;border:1px solid #e1e3e8;border-radius:10px;padding:0 13px;font-size:14px;font-family:inherit;">
+        </div>
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;color:#8a909a;margin-bottom:6px;">CVV</label>
+          <input id="card-cvv" value="${state.card.cvv}" oninput="onCardInput('cvv',this)" placeholder="123" inputmode="numeric" maxlength="4" style="width:100%;height:44px;border:1px solid #e1e3e8;border-radius:10px;padding:0 13px;font-size:14px;font-family:inherit;">
+        </div>
+      </div>
+      <label style="display:block;font-size:12px;color:#8a909a;margin:12px 0 6px;">Nombre del titular</label>
+      <input id="card-name" value="${state.card.name}" oninput="onCardInput('name',this)" placeholder="Como figura en la tarjeta" style="width:100%;height:44px;border:1px solid #e1e3e8;border-radius:10px;padding:0 13px;font-size:14px;font-family:inherit;">
+    </div>` : '';
+
+  const ctaLabel = isCard ? `Pagar ${sol(subtotal)}` : 'Continuar';
+
+  document.getElementById('main').innerHTML = `
+    <div>
+      <div style="font-size:19px;font-weight:700;letter-spacing:-0.01em;color:#15171b;">Elige cómo pagar</div>
+      <div style="margin-top:4px;font-size:13.5px;color:#8a909a;">Selecciona un método para continuar con tu pago.</div>
+      <div style="margin-top:20px;display:flex;flex-direction:column;gap:10px;">${tiles}</div>
+      ${cardForm}
+      <div style="margin-top:18px;display:flex;gap:11px;align-items:flex-start;background:#f6f8fc;border-radius:12px;padding:14px 15px;">
+        <span style="width:22px;height:22px;border-radius:6px;background:#e7edf9;color:#2563eb;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex:none;">i</span>
+        <span style="font-size:13px;color:#5b626c;line-height:1.5;">${NOTES[sel] || ''}</span>
+      </div>
+      <button onclick="goConfirm()" style="${btnStyle()}">${ctaLabel}</button>
+      <div style="margin-top:14px;text-align:center;font-size:11.5px;color:#a2a8b2;">Al continuar aceptas los términos de servicio del comercio.</div>
+    </div>`;
+}
+
+function renderConfirm(){
+  const sel = state.method;
+  const methodName = (METHODS.find(m => m.id === sel) || {}).name;
+  const isCard = sel === 'tarjeta';
+  const isQr = sel === 'yape' || sel === 'plin';
+  const isCode = sel === 'efectivo' || sel === 'billetera';
+
+  const back = `<button onclick="goBack()" style="align-self:flex-start;background:none;border:none;cursor:pointer;color:#6b727c;font-size:13px;font-family:inherit;font-weight:600;padding:4px 0;display:flex;align-items:center;gap:5px;">‹ Volver a métodos</button>`;
+
+  if (state.processing) {
+    document.getElementById('main').innerHTML = `
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;">
+        <div style="width:36px;height:36px;border-radius:50%;border:3px solid #e6e7ea;border-top-color:${ACCENT};animation:spin .8s linear infinite;"></div>
+        <span style="font-size:13.5px;color:#8a909a;">Confirmando tu pago...</span>
+      </div>
+      <style>@keyframes spin{to{transform:rotate(360deg)}}</style>`;
+    return;
+  }
+
+  if (state.paid) {
+    const alq = state.alquiler;
+    document.getElementById('main').innerHTML = `
+      <div style="animation:fadeUp .25s ease;display:flex;flex-direction:column;height:100%;">
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:18px 0;">
+          <div style="width:74px;height:74px;border-radius:50%;background:#e3f4ea;display:flex;align-items:center;justify-content:center;">
+            <span style="color:#137a45;font-size:38px;font-weight:900;line-height:1;">✓</span>
+          </div>
+          <div style="margin-top:18px;font-size:21px;font-weight:800;color:#15171b;letter-spacing:-0.01em;">${isCard ? '¡Pago aprobado!' : '¡Pago registrado!'}</div>
+          <div style="margin-top:7px;font-size:13.5px;color:#8a909a;max-width:340px;line-height:1.5;">${isCard ? 'Tu tarjeta fue cargada correctamente. Tu pedido de menaje quedó confirmado.' : 'Tu pago fue registrado y tu pedido de menaje quedó confirmado.'}</div>
+
+          <div style="margin-top:24px;width:100%;max-width:360px;border:1px solid #ecedf1;border-radius:14px;overflow:hidden;">
+            <div style="display:flex;justify-content:space-between;padding:13px 16px;border-bottom:1px solid #f1f2f5;font-size:13px;"><span style="color:#9aa0aa;">Pedido</span><span style="font-weight:600;color:#15171b;">${ORDER_REF}</span></div>
+            <div style="display:flex;justify-content:space-between;padding:13px 16px;border-bottom:1px solid #f1f2f5;font-size:13px;"><span style="color:#9aa0aa;">Método</span><span style="font-weight:600;color:#15171b;">${methodName}</span></div>
+            <div style="display:flex;justify-content:space-between;padding:13px 16px;font-size:13px;"><span style="color:#9aa0aa;">Monto</span><span style="font-weight:700;color:#15171b;">${sol(alq.total)}</span></div>
+          </div>
+
+          <div style="margin-top:20px;font-size:12.5px;color:#8a909a;">Este código se escaneará al entregar y recoger tu pedido</div>
+          <div id="qr-render" style="margin-top:10px;padding:14px;background:#fff;border:1px solid #e7e9ed;border-radius:16px;box-shadow:0 6px 20px -12px rgba(20,26,40,0.25);"></div>
+
+          <button onclick="descargarQR('qr-render','qr-alquiler-${alq.id}.png')" style="margin-top:16px;background:#fff;border:1px solid #e1e3e8;border-radius:10px;padding:10px 18px;font-size:13px;font-weight:600;font-family:inherit;color:#3a3f48;cursor:pointer;">Descargar imagen</button>
+          <a href="/pages/cliente/mis-alquileres.html" style="${btnStyle()}display:flex;align-items:center;justify-content:center;text-decoration:none;box-sizing:border-box;">Ver mis alquileres</a>
+        </div>
+      </div>`;
+    new QRCode(document.getElementById('qr-render'), {
+      text: `${window.location.origin}/pages/trabajador/qr-scan.html?token=${alq.qr_token}`,
+      width: 190, height: 190
+    });
+    return;
+  }
+
+  if (isQr) {
+    const cells = buildQrCells();
+    const grid = cells.map(on => `<div style="background:${on?'#0f1115':'transparent'};aspect-ratio:1;"></div>`).join('');
+    document.getElementById('main').innerHTML = `
+      <div style="animation:fadeUp .25s ease;display:flex;flex-direction:column;height:100%;">
+        ${back}
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;text-align:center;padding-top:6px;">
+          <div style="font-size:19px;font-weight:700;color:#15171b;">Paga con ${methodName}</div>
+          <div style="margin-top:4px;font-size:13.5px;color:#8a909a;">Escanea el código desde tu app o transfiere al número.</div>
+          <div style="margin-top:20px;padding:14px;background:#fff;border:1px solid #e7e9ed;border-radius:16px;box-shadow:0 6px 20px -12px rgba(20,26,40,0.25);">
+            <div style="display:grid;grid-template-columns:repeat(23,1fr);width:190px;height:190px;">${grid}</div>
+          </div>
+          <div style="margin-top:18px;display:flex;flex-direction:column;align-items:center;gap:2px;">
+            <span style="font-size:11.5px;color:#9aa0aa;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;">O transfiere al número</span>
+            <span style="font-size:22px;font-weight:800;color:#15171b;font-variant-numeric:tabular-nums;letter-spacing:0.02em;">987 654 321</span>
+            <span style="font-size:12.5px;color:#8a909a;">a nombre de ${MERCHANT}</span>
+          </div>
+          <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
+            <div style="display:flex;align-items:center;gap:7px;background:#f6f8fc;border-radius:9px;padding:9px 13px;"><span style="font-size:12px;color:#8a909a;">Monto exacto</span><span style="font-size:14px;font-weight:700;color:#15171b;">${sol(subtotal)}</span></div>
+            <div style="display:flex;align-items:center;gap:7px;background:#fff3e6;border-radius:9px;padding:9px 13px;"><span style="font-size:12px;color:#c2731a;">Vence en</span><span id="timer-val2" style="font-size:14px;font-weight:700;color:#c2731a;font-variant-numeric:tabular-nums;">${fmtTimer(state.secondsLeft)}</span></div>
+          </div>
+          <div style="margin-top:auto;padding-top:22px;width:100%;max-width:380px;">
+            <button onclick="markPaid()" style="${btnStyle()}">Ya realicé el pago</button>
+          </div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  if (isCode) {
+    const isEfectivo = sel === 'efectivo';
+    const steps = isEfectivo
+      ? [['1','Acércate a un agente o banco: BCP, BBVA, Interbank, Scotiabank, Tambo, agentes Kasnet o Western Union.'],
+         ['2','Indica que pagarás el servicio “pagora” con tu código CIP.'],
+         ['3','Entrega el monto exacto y conserva tu voucher como comprobante.']]
+      : [['1','Ingresa a tu app PagoEfectivo (u otra billetera compatible).'],
+         ['2','Elige “Pagar servicio” e introduce tu código CIP.'],
+         ['3','Confirma el monto y completa el pago desde tu saldo o banco.']];
+    document.getElementById('main').innerHTML = `
+      <div style="animation:fadeUp .25s ease;display:flex;flex-direction:column;height:100%;">
+        ${back}
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;text-align:center;padding-top:6px;">
+          <div style="font-size:19px;font-weight:700;color:#15171b;">${isEfectivo ? 'Paga en efectivo' : 'Paga con tu billetera'}</div>
+          <div style="margin-top:4px;font-size:13.5px;color:#8a909a;max-width:360px;line-height:1.5;">${isEfectivo ? 'Usa este código para abonar en cualquier agente, bodega o banco afiliado.' : 'Usa este código CIP en PagoEfectivo u otra billetera digital para completar tu pago.'}</div>
+
+          <div style="margin-top:20px;width:100%;max-width:380px;border:1.5px dashed #c9cdd6;border-radius:14px;padding:18px;background:#fafbfc;">
+            <div style="font-size:11.5px;color:#9aa0aa;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;">Código de pago (CIP)</div>
+            <div style="margin-top:8px;font-size:30px;font-weight:800;color:#15171b;font-family:ui-monospace,'SF Mono',Menlo,monospace;letter-spacing:0.06em;">7783 4521</div>
+            <button onclick="copyCode()" style="margin-top:12px;background:#fff;border:1px solid #e1e3e8;border-radius:9px;padding:8px 16px;font-size:13px;font-weight:600;font-family:inherit;color:#3a3f48;cursor:pointer;">${state.copied ? '¡Copiado!' : 'Copiar código'}</button>
+          </div>
+
+          <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
+            <div style="display:flex;align-items:center;gap:7px;background:#f6f8fc;border-radius:9px;padding:9px 13px;"><span style="font-size:12px;color:#8a909a;">Monto exacto</span><span style="font-size:14px;font-weight:700;color:#15171b;">${sol(subtotal)}</span></div>
+            <div style="display:flex;align-items:center;gap:7px;background:#fff3e6;border-radius:9px;padding:9px 13px;"><span style="font-size:12px;color:#c2731a;">Vence en</span><span id="timer-val2" style="font-size:14px;font-weight:700;color:#c2731a;font-variant-numeric:tabular-nums;">${fmtTimer(state.secondsLeft)}</span></div>
+          </div>
+
+          <div style="margin-top:18px;width:100%;max-width:400px;text-align:left;background:#fcfcfd;border:1px solid #ecedf1;border-radius:12px;padding:15px 17px;">
+            <div style="font-size:12.5px;font-weight:700;color:#3a3f48;margin-bottom:10px;">${isEfectivo ? '¿Dónde y cómo pago?' : 'Pasos para pagar'}</div>
+            ${steps.map(([n,t]) => `
+              <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:9px;">
+                <span style="width:19px;height:19px;border-radius:50%;background:#e7edf9;color:#2563eb;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none;margin-top:1px;">${n}</span>
+                <span style="font-size:13px;color:#5b626c;line-height:1.45;">${t}</span>
+              </div>`).join('')}
+          </div>
+
+          <div style="margin-top:auto;padding-top:20px;width:100%;max-width:380px;">
+            <button onclick="markPaid()" style="${btnStyle()}">Ya realicé el pago</button>
+          </div>
+        </div>
+      </div>`;
+  }
+}
+
+function render(){
+  renderAside();
+  state.step === 'select' ? renderSelect() : renderConfirm();
+}
+
+function selectMethod(id){ state.method = id; renderSelect(); }
+function onCardInput(field, el){
+  let v = el.value;
+  if (field === 'number') v = v.replace(/[^\d]/g,'').slice(0,16).replace(/(.{4})/g,'$1 ').trim();
+  if (field === 'exp') v = v.replace(/[^\d]/g,'').slice(0,4).replace(/(\d{2})(\d)/,'$1/$2');
+  if (field === 'cvv') v = v.replace(/[^\d]/g,'').slice(0,4);
+  el.value = v;
+  state.card[field] = v;
+}
+function copyCode(){
+  try { navigator.clipboard.writeText('7783 4521'); } catch(e) {}
+  state.copied = true; renderConfirm();
+  clearTimeout(window._cpTimer);
+  window._cpTimer = setTimeout(() => { state.copied = false; renderConfirm(); }, 1600);
+}
+function goBack(){ state.step = 'select'; state.paid = false; render(); }
+
+async function goConfirm(){
+  state.step = 'confirm';
+  if (state.method === 'tarjeta') {
+    if (!state.card.number || !state.card.exp || !state.card.cvv || !state.card.name) {
+      state.step = 'select'; renderSelect();
+      return toast('Completa los datos de la tarjeta', 'warn');
+    }
+    await confirmarPagoReal();
+  } else {
+    render();
+  }
+}
+
+async function markPaid(){
+  await confirmarPagoReal();
+}
+
+async function confirmarPagoReal(){
+  state.processing = true; renderConfirm();
+  try {
+    const alq = await apiFetch('/alquileres', { method: 'POST', body: JSON.stringify(pedido) });
+    sessionStorage.removeItem('pedido_pendiente');
+    state.alquiler = alq;
+    state.paid = true;
+    state.processing = false;
+    renderConfirm();
+  } catch (err) {
+    state.processing = false;
+    state.step = 'select';
+    render();
+    toast(err.message, 'error');
+  }
+}
+
+render();
+</script>
+</body>
+</html>

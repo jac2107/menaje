@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Catálogo — Menaje</title>
+  <link rel="stylesheet" href="/assets/css/main.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+<div class="layout">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-brand" style="display:flex;align-items:center;gap:10px"><img src="/assets/img/logo.png" alt="Menaje" width="28" height="28" style="object-fit:contain;flex:none"><span>Menaje</span></div>
+    <a href="/pages/cliente/mi-cuenta.html" class="sidebar-user" style="display:flex;align-items:center;gap:11px;text-decoration:none;color:inherit;cursor:pointer"><div id="sidebar-user-avatar" style="width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#36ada3,#2f578a);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:#fff;flex:none"></div><div style="min-width:0"><strong id="sidebar-user-name" style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></strong><span id="sidebar-user-rol"></span></div></a>
+    <nav>
+      <a href="/pages/cliente/catalogo.html" class="active"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h2l2.4 12.4a2 2 0 0 0 2 1.6h7.2a2 2 0 0 0 2-1.6L21 8H6"></path><circle cx="9" cy="20" r="1.3"></circle><circle cx="17" cy="20" r="1.3"></circle></svg></span>Catálogo</a>
+      <a href="/pages/cliente/mis-alquileres.html"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="12" height="17" rx="2.2"></rect><path d="M9 4V3.2A1.2 1.2 0 0 1 10.2 2h3.6A1.2 1.2 0 0 1 15 3.2V4"></path><path d="M9 10h6M9 14h6M9 18h4"></path></svg></span>Mis Alquileres</a>
+      <a href="/pages/cliente/perfil.html"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"></circle><path d="M5 20a7 7 0 0 1 14 0"></path></svg></span>Mi Perfil</a>
+    </nav>
+    <div class="sidebar-footer"><button onclick="logout()" style="display:flex;align-items:center;justify-content:center;gap:8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>Cerrar sesión</button></div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main-content">
+    <div class="topbar">
+      <h1>Catálogo de Productos</h1>
+      <button id="menu-toggle" class="btn-menu-toggle">☰</button>
+      <button class="btn btn-primary" onclick="abrirCarrito()" style="position:relative">
+        Ver carrito
+        <span class="cart-badge" id="cart-count">0</span>
+      </button>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card" style="margin-bottom:16px;">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+        <div class="form-group" style="margin:0;flex:1;min-width:180px;">
+          <label>Buscar</label>
+          <input class="form-control" id="q" placeholder="Nombre del producto..." oninput="cargarCatalogo()"/>
+        </div>
+      </div>
+      <div class="filter-chips" id="filtro-cat" style="margin-top:12px">
+        <button type="button" class="filter-chip active" data-val="">Todas</button>
+      </div>
+    </div>
+
+    <!-- Productos grid -->
+    <div id="productos-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;"></div>
+  </main>
+</div>
+
+<!-- MODAL CARRITO -->
+<div class="modal-overlay" id="modal-carrito">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-header">
+      <h2>Carrito de Alquiler</h2>
+      <button class="modal-close" onclick="closeModal('modal-carrito')">×</button>
+    </div>
+    <div id="carrito-items"></div>
+    <div id="carrito-resumen" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)"></div>
+    <div class="form-row" style="margin-top:16px;">
+      <div class="form-group">
+        <label>Fecha de entrega</label>
+        <input type="date" class="form-control" id="fecha-entrega"/>
+      </div>
+      <div class="form-group">
+        <label>Fecha de recojo</label>
+        <input type="date" class="form-control" id="fecha-recojo"/>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Ubicación del evento</label>
+      <p style="font-size:.78rem;color:var(--text-muted);margin:-2px 0 8px">Haz clic en el mapa para marcar el lugar exacto de entrega.</p>
+      <div id="mapa-evento" style="height:240px;border-radius:var(--radius-sm);overflow:hidden;border:1px solid var(--border)"></div>
+      <div id="dir-evento-preview" style="margin-top:8px;font-size:.82rem;color:var(--text-muted)">Aún no has marcado una ubicación.</div>
+    </div>
+    <button class="btn btn-success" style="width:100%;justify-content:center;margin-top:8px" onclick="confirmarAlquiler()">
+      Ir a Pagar
+    </button>
+  </div>
+</div>
+
+<script src="/assets/js/app.js"></script>
+<script>
+if (!Auth.requireAuth('cliente')) throw new Error('no auth');
+
+let carrito = [];
+let categoriaFiltro = '';
+let mapaEvento = null, marcadorEvento = null, ubicacionEvento = null;
+
+document.querySelectorAll('#filtro-cat .filter-chip').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#filtro-cat .filter-chip').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    categoriaFiltro = btn.dataset.val;
+    cargarCatalogo();
+  });
+});
+
+async function cargarCatalogo() {
+  const q   = document.getElementById('q').value;
+  let url = '/productos/catalogo?';
+  if (q)   url += `q=${encodeURIComponent(q)}&`;
+  if (categoriaFiltro) url += `categoria_id=${categoriaFiltro}`;
+  try {
+    const prods = await apiFetch(url);
+    renderProductos(prods);
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+function renderProductos(prods) {
+  const grid = document.getElementById('productos-grid');
+  if (!prods.length) { grid.innerHTML = '<p style="color:var(--text-muted)">No hay productos disponibles.</p>'; return; }
+  grid.innerHTML = prods.map(p => `
+    <div class="card" style="padding:16px;">
+      ${p.foto_url ? `<img src="${p.foto_url}" style="width:100%;height:140px;object-fit:cover;border-radius:8px;margin-bottom:12px;" />` : ''}
+      <div style="font-weight:700;margin-bottom:4px">${p.nombre}</div>
+      <div style="font-size:.8rem;color:var(--text-muted);margin-bottom:8px">${p.categoria}</div>
+      <div style="font-size:1.1rem;font-weight:700;color:var(--primary);margin-bottom:4px">${sol(p.precio_unidad)}<span style="font-size:.75rem;font-weight:400;color:var(--text-muted)"> / unidad</span></div>
+      <div style="font-size:.8rem;margin-bottom:12px">Disponible: <strong>${p.stock_disponible}</strong></div>
+      ${p.stock_disponible > 0
+        ? `<div style="display:flex;gap:8px;align-items:center">
+             <input type="number" id="qty-${p.id}" min="1" max="${p.stock_disponible}" value="1" class="form-control" style="width:70px;padding:6px;" />
+             <button class="btn btn-primary btn-sm" onclick="agregarAlCarrito(${p.id},'${p.nombre}',${p.precio_unidad},${p.stock_disponible})">+ Añadir</button>
+           </div>`
+        : '<span style="color:var(--danger);font-size:.85rem">Sin stock</span>'}
+    </div>
+  `).join('');
+}
+
+function agregarAlCarrito(id, nombre, precio, maxStock) {
+  const qty = parseInt(document.getElementById(`qty-${id}`).value) || 1;
+  if (qty < 1 || qty > maxStock) return toast('Cantidad inválida', 'warn');
+  const idx = carrito.findIndex(x => x.producto_id === id);
+  if (idx >= 0) {
+    const nuevo = carrito[idx].cantidad + qty;
+    if (nuevo > maxStock) return toast('No hay suficiente stock', 'warn');
+    carrito[idx].cantidad = nuevo;
+  } else {
+    carrito.push({ producto_id: id, nombre, precio_unidad: precio, cantidad: qty });
+  }
+  actualizarCarritoUI();
+  toast(`${nombre} añadido al carrito`);
+}
+
+function actualizarCarritoUI() {
+  document.getElementById('cart-count').textContent = carrito.length;
+  const cont = document.getElementById('carrito-items');
+  if (!carrito.length) { cont.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px">Carrito vacío</p>'; renderResumen(); return; }
+  cont.innerHTML = `<table><thead><tr><th>Producto</th><th>Cant.</th><th>Precio</th><th>Sub.</th><th></th></tr></thead><tbody>
+    ${carrito.map((item,i) => `
+      <tr>
+        <td>${item.nombre}</td>
+        <td><input type="number" min="1" value="${item.cantidad}" style="width:60px;padding:4px;border:1px solid var(--border);border-radius:6px" onchange="cambiarCantidad(${i},this.value)"/></td>
+        <td>${sol(item.precio_unidad)}</td>
+        <td>${sol(item.precio_unidad * item.cantidad)}</td>
+        <td><button class="btn btn-danger btn-sm" onclick="quitarItem(${i})"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"></path><path d="M10 11v6M14 11v6"></path><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"></path><path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"></path></svg></button></td>
+      </tr>`).join('')}
+  </tbody></table>`;
+  renderResumen();
+}
+
+function cambiarCantidad(i, val) {
+  carrito[i].cantidad = Math.max(1, parseInt(val) || 1);
+  actualizarCarritoUI();
+}
+function quitarItem(i) { carrito.splice(i,1); actualizarCarritoUI(); }
+
+function renderResumen() {
+  const subtotal = carrito.reduce((s,x) => s + x.precio_unidad*x.cantidad, 0);
+  document.getElementById('carrito-resumen').innerHTML = !carrito.length ? '' : `
+    <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+      <span>Subtotal</span><strong>${sol(subtotal)}</strong>
+    </div>
+    <div style="font-size:.8rem;color:var(--text-muted)">+ Garantía y descuentos se calculan al confirmar</div>`;
+}
+
+function abrirCarrito() {
+  openModal('modal-carrito');
+  setTimeout(initMapaEvento, 50);
+}
+
+function initMapaEvento() {
+  if (mapaEvento) { mapaEvento.invalidateSize(); return; }
+  mapaEvento = L.map('mapa-evento').setView([-9.9306, -76.2422], 14); // Huánuco, Perú
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap'
+  }).addTo(mapaEvento);
+  mapaEvento.on('click', async (e) => {
+    const { lat, lng } = e.latlng;
+    if (marcadorEvento) marcadorEvento.setLatLng(e.latlng);
+    else marcadorEvento = L.marker(e.latlng).addTo(mapaEvento);
+    ubicacionEvento = { lat, lng, direccion: `Lat ${lat.toFixed(5)}, Lng ${lng.toFixed(5)}` };
+    document.getElementById('dir-evento-preview').textContent = `Ubicación marcada: ${ubicacionEvento.direccion}`;
+    try {
+      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+      const data = await r.json();
+      if (data?.display_name) {
+        ubicacionEvento.direccion = data.display_name;
+        document.getElementById('dir-evento-preview').textContent = `📍 ${data.display_name}`;
+      }
+    } catch { /* sin internet o límite de la API: se conserva lat/lng como dirección */ }
+  });
+}
+
+function confirmarAlquiler() {
+  if (!carrito.length) return toast('Agrega productos al carrito', 'warn');
+  const fe = document.getElementById('fecha-entrega').value;
+  const fr = document.getElementById('fecha-recojo').value;
+  if (!fe || !fr) return toast('Completa las fechas', 'warn');
+  if (!ubicacionEvento) return toast('Marca la ubicación del evento en el mapa', 'warn');
+  if (new Date(fr) < new Date(fe)) return toast('La fecha de recojo no puede ser antes de la entrega', 'warn');
+
+  const pedido = {
+    items: carrito, fecha_entrega: fe, fecha_recojo: fr,
+    direccion_evento: ubicacionEvento.direccion, lat: ubicacionEvento.lat, lng: ubicacionEvento.lng
+  };
+  sessionStorage.setItem('pedido_pendiente', JSON.stringify(pedido));
+  location.href = '/pages/cliente/pago.html';
+}
+
+async function cargarCategorias() {
+  const cats = await apiFetch('/categorias');
+  const cont = document.getElementById('filtro-cat');
+  cats.forEach(c => {
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'filter-chip'; btn.dataset.val = c.id; btn.textContent = c.nombre;
+    btn.addEventListener('click', () => {
+      cont.querySelectorAll('.filter-chip').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      categoriaFiltro = c.id;
+      cargarCatalogo();
+    });
+    cont.appendChild(btn);
+  });
+}
+
+// Fechas mínimas = hoy
+
+  const hoy = new Date().toISOString().split('T')[0];
+document.getElementById('fecha-entrega').min = hoy;
+document.getElementById('fecha-recojo').min  = hoy;
+
+cargarCategorias();
+cargarCatalogo();
+
+</script>
+</body>
+</html>

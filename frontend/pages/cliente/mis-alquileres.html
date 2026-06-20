@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Mis Alquileres — Menaje</title>
+  <link rel="stylesheet" href="/assets/css/main.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-brand" style="display:flex;align-items:center;gap:10px"><img src="/assets/img/logo.png" alt="Menaje" width="28" height="28" style="object-fit:contain;flex:none"><span>Menaje</span></div>
+    <a href="/pages/cliente/mi-cuenta.html" class="sidebar-user" style="display:flex;align-items:center;gap:11px;text-decoration:none;color:inherit;cursor:pointer"><div id="sidebar-user-avatar" style="width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#36ada3,#2f578a);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:#fff;flex:none"></div><div style="min-width:0"><strong id="sidebar-user-name" style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></strong><span id="sidebar-user-rol"></span></div></a>
+    <nav>
+      <a href="/pages/cliente/catalogo.html"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h2l2.4 12.4a2 2 0 0 0 2 1.6h7.2a2 2 0 0 0 2-1.6L21 8H6"></path><circle cx="9" cy="20" r="1.3"></circle><circle cx="17" cy="20" r="1.3"></circle></svg></span>Catálogo</a>
+      <a href="/pages/cliente/mis-alquileres.html" class="active"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="12" height="17" rx="2.2"></rect><path d="M9 4V3.2A1.2 1.2 0 0 1 10.2 2h3.6A1.2 1.2 0 0 1 15 3.2V4"></path><path d="M9 10h6M9 14h6M9 18h4"></path></svg></span>Mis Alquileres</a>
+      <a href="/pages/cliente/perfil.html"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"></circle><path d="M5 20a7 7 0 0 1 14 0"></path></svg></span>Mi Perfil</a>
+    </nav>
+    <div class="sidebar-footer"><button onclick="logout()" style="display:flex;align-items:center;justify-content:center;gap:8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>Cerrar sesión</button></div>
+  </aside>
+
+  <main class="main-content">
+    <div class="topbar">
+      <button id="menu-toggle" class="btn-menu-toggle">☰</button>
+      <h1>Mis Alquileres</h1>
+    </div>
+    <div class="filter-chips" id="filtro-fecha">
+      <button type="button" class="filter-chip active" data-val="">Todos</button>
+      <button type="button" class="filter-chip" data-val="hoy">Hoy</button>
+      <button type="button" class="filter-chip" data-val="ayer">Ayer</button>
+      <button type="button" class="filter-chip" data-val="semana">Última semana</button>
+      <button type="button" class="filter-chip" data-val="mes">Último mes</button>
+    </div>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Fecha Entrega</th><th>Fecha Recojo</th><th>Dirección</th><th>Total</th><th>Estado</th><th>QR</th></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- MODAL QR -->
+<div class="modal-overlay" id="modal-qr">
+  <div class="modal" style="max-width:380px;text-align:center">
+    <div class="modal-header">
+      <h2>Código QR del Alquiler</h2>
+      <button class="modal-close" onclick="closeModal('modal-qr')">×</button>
+    </div>
+    <p style="color:var(--text-muted);margin-bottom:16px;font-size:.9rem">Muestra este código al trabajador para registrar la entrega o recojo.</p>
+    <div id="qr-container" style="display:flex;justify-content:center;"></div>
+    <p id="qr-desc" style="margin-top:12px;font-size:.8rem;color:var(--text-muted)"></p>
+    <button class="btn btn-outline" style="width:100%;justify-content:center;margin-top:8px" onclick="descargarQR('qr-container','qr-' + (qrIdActual||'menaje') + '.png')">Descargar imagen</button>
+  </div>
+</div>
+
+<!-- MODAL DETALLE -->
+<div class="modal-overlay" id="modal-detalle">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <h2>Detalle del Alquiler</h2>
+      <button class="modal-close" onclick="closeModal('modal-detalle')">×</button>
+    </div>
+    <div id="detalle-content"></div>
+  </div>
+</div>
+
+<script src="/assets/js/app.js"></script>
+<script>
+if (!Auth.requireAuth('cliente')) throw new Error('no auth');
+
+let qrIdActual = null;
+let rangoFiltro = '';
+
+document.querySelectorAll('#filtro-fecha .filter-chip').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#filtro-fecha .filter-chip').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    rangoFiltro = btn.dataset.val;
+    cargar();
+  });
+});
+
+async function cargar() {
+  try {
+    const url = '/alquileres/mis' + (rangoFiltro ? `?rango=${rangoFiltro}` : '');
+    const alqs = await apiFetch(url);
+    const tbody = document.getElementById('tbody');
+    if (!alqs.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">No tienes alquileres aún. ¡Ve al catálogo!</td></tr>'; return; }
+    tbody.innerHTML = alqs.map(a => `
+      <tr class="row-clickable" onclick="verDetalle(${a.id})">
+        <td>${fmtFecha(a.fecha_entrega)}</td>
+        <td>${fmtFecha(a.fecha_recojo)}</td>
+        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis">${a.direccion_evento}</td>
+        <td><strong>${sol(a.total)}</strong></td>
+        <td>${badgeEstado(a.estado)}</td>
+        <td>
+          ${a.estado !== 'cerrado'
+            ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();mostrarQR('${a.qr_token}',${a.id})">QR</button>`
+            : '—'}
+        </td>
+      </tr>`).join('');
+  } catch(e) { toast(e.message,'error'); }
+}
+
+function mostrarQR(token, id) {
+  qrIdActual = id;
+  document.getElementById('qr-container').innerHTML = '';
+  new QRCode(document.getElementById('qr-container'), {
+    text: `${window.location.origin}/pages/trabajador/qr-scan.html?token=${token}`,
+    width: 220, height: 220
+  });
+  document.getElementById('qr-desc').textContent = `Alquiler #${id}`;
+  openModal('modal-qr');
+}
+
+async function verDetalle(id) {
+  try {
+    const a = await apiFetch(`/alquileres/${id}`);
+    document.getElementById('detalle-content').innerHTML = `
+      <div style="margin-bottom:16px">
+        <strong>Estado:</strong> ${badgeEstado(a.estado)}<br/>
+        <strong>Dirección:</strong> ${a.direccion_evento}<br/>
+        <strong>Entrega:</strong> ${fmtFecha(a.fecha_entrega)} &nbsp; <strong>Recojo:</strong> ${fmtFecha(a.fecha_recojo)}
+      </div>
+      <table>
+        <thead><tr><th>Producto</th><th>Cant.</th><th>Precio</th><th>Subtotal</th></tr></thead>
+        <tbody>
+          ${a.items.map(i=>`<tr><td>${i.nombre}</td><td>${i.cantidad}</td><td>${sol(i.precio_unit)}</td><td>${sol(i.subtotal)}</td></tr>`).join('')}
+        </tbody>
+      </table>
+      <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px">
+        <div style="display:flex;justify-content:space-between"><span>Subtotal</span><span>${sol(a.subtotal)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>Descuento (${a.descuento_pct}%)</span><span>-${sol(a.descuento_monto)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>Garantía</span><span>${sol(a.garantia)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:700;font-size:1.1rem;margin-top:8px"><span>TOTAL</span><span>${sol(a.total)}</span></div>
+      </div>`;
+    openModal('modal-detalle');
+  } catch(e) { toast(e.message,'error'); }
+}
+
+cargar();
+</script>
+</body>
+</html>

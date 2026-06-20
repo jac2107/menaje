@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Reportes — Menaje</title>
+  <link rel="stylesheet" href="/assets/css/main.css"/>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-brand" style="display:flex;align-items:center;gap:10px"><img src="/assets/img/logo.png" alt="Menaje" width="28" height="28" style="object-fit:contain;flex:none"><span>Menaje</span></div>
+    <a href="/pages/dueno/mi-cuenta.html" class="sidebar-user" style="display:flex;align-items:center;gap:11px;text-decoration:none;color:inherit;cursor:pointer"><div id="sidebar-user-avatar" style="width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#36ada3,#2f578a);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:#fff;flex:none"></div><div style="min-width:0"><strong id="sidebar-user-name" style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></strong><span id="sidebar-user-rol"></span></div></a>
+    <nav>
+      <a href="/pages/dueno/dashboard.html"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.6"></rect><rect x="14" y="3" width="7" height="7" rx="1.6"></rect><rect x="3" y="14" width="7" height="7" rx="1.6"></rect><rect x="14" y="14" width="7" height="7" rx="1.6"></rect></svg></span>Dashboard</a>
+      <a href="/pages/dueno/alquileres.html"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="12" height="17" rx="2.2"></rect><path d="M9 4V3.2A1.2 1.2 0 0 1 10.2 2h3.6A1.2 1.2 0 0 1 15 3.2V4"></path><path d="M9 10h6M9 14h6M9 18h4"></path></svg></span>Alquileres</a>
+      <a href="/pages/dueno/inventario.html"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5z"></path><path d="M3 8l9 5 9-5M12 13v8"></path></svg></span>Inventario</a>
+      <a href="/pages/dueno/usuarios.html"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1"></path><circle cx="9.5" cy="8" r="3.2"></circle><path d="M21 19v-1a4 4 0 0 0-3-3.8M16.5 5.2a3.2 3.2 0 0 1 0 5.6"></path></svg></span>Usuarios</a>
+      <a href="/pages/dueno/descuentos.html"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"></line><circle cx="7" cy="7" r="2.3"></circle><circle cx="17" cy="17" r="2.3"></circle></svg></span>Descuentos</a>
+      <a href="/pages/dueno/reportes.html" class="active"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="20" x2="6" y2="12"></line><line x1="12" y1="20" x2="12" y2="5"></line><line x1="18" y1="20" x2="18" y2="9"></line></svg></span>Reportes</a>
+      <a href="/pages/dueno/configuracion.html"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="8" x2="20" y2="8"></line><line x1="4" y1="16" x2="20" y2="16"></line><circle cx="9" cy="8" r="2.4"></circle><circle cx="15" cy="16" r="2.4"></circle></svg></span>Configuración</a>
+    </nav>
+    <div class="sidebar-footer"><button onclick="logout()" style="display:flex;align-items:center;justify-content:center;gap:8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>Cerrar sesión</button></div>
+  </aside>
+  <main class="main-content">
+    <div class="topbar">
+      <button id="menu-toggle" class="btn-menu-toggle">☰</button>
+      <h1>Reportes</h1></div>
+
+    <!-- Tabs -->
+    <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap">
+      <button class="btn btn-primary" id="tab-ing"  onclick="showTab('ingresos')">Ingresos por Mes</button>
+      <button class="btn btn-outline" id="tab-prod" onclick="showTab('productos')">Top Productos</button>
+      <button class="btn btn-outline" id="tab-dan"  onclick="showTab('danos')">Daños y Garantías</button>
+    </div>
+
+    <!-- INGRESOS -->
+    <div id="panel-ingresos">
+      <div class="card">
+        <div class="card-title">Ingresos Mensuales</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Mes</th><th>Alquileres</th><th>Subtotal</th><th>Descuentos</th><th>Garantías</th><th>Total Facturado</th></tr></thead>
+            <tbody id="tbody-ing"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- PRODUCTOS -->
+    <div id="panel-productos" style="display:none">
+      <div class="card">
+        <div class="card-title">Productos más alquilados (Top 10)</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Producto</th><th>Categoría</th><th>Veces alquilado</th><th>Ingresos generados</th></tr></thead>
+            <tbody id="tbody-prod"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- DAÑOS -->
+    <div id="panel-danos" style="display:none">
+      <div class="card">
+        <div class="card-title">Historial de Daños y Garantías</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Fecha</th><th>Alquiler</th><th>Cliente</th><th>Garantía</th><th>Desc. Daños</th><th>Devuelto</th><th>Adicional</th><th>Obs.</th></tr></thead>
+            <tbody id="tbody-dan"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="/assets/js/app.js"></script>
+<script>
+if (!Auth.requireAuth('dueno')) throw new Error('no auth');
+
+async function cargarIngresos() {
+  try {
+    const data = await apiFetch('/reportes/ingresos');
+    document.getElementById('tbody-ing').innerHTML = data.length
+      ? data.map((r,i) => `<tr>
+          <td>${new Date(r.mes).toLocaleDateString('es-PE',{month:'long',year:'numeric'})}</td>
+          <td>${r.total_alquileres}</td><td>${sol(r.ingresos_brutos)}</td>
+          <td style="color:var(--warn)">-${sol(r.descuentos)}</td>
+          <td>${sol(r.garantias_cobradas)}</td>
+          <td><strong>${sol(r.total_facturado)}</strong></td>
+        </tr>`).join('')
+      : '<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">Sin datos</td></tr>';
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function cargarProductos() {
+  try {
+    const data = await apiFetch('/reportes/productos');
+    document.getElementById('tbody-prod').innerHTML = data.map((p,i) => `
+      <tr><td>${i+1}</td><td><strong>${p.nombre}</strong></td><td>${p.categoria}</td>
+          <td>${p.veces_alquilado}</td><td>${sol(p.ingresos_generados)}</td></tr>`).join('');
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function cargarDanos() {
+  try {
+    const data = await apiFetch('/reportes/danos');
+    document.getElementById('tbody-dan').innerHTML = data.length
+      ? data.map(d => `<tr>
+          <td>${fmtFecha(d.created_at)}</td><td>#${d.alquiler_id}</td><td>${d.cliente}</td>
+          <td>${sol(d.garantia_cobrada)}</td><td style="color:var(--danger)">${sol(d.monto_descontado)}</td>
+          <td style="color:var(--success)">${sol(d.monto_devuelto)}</td>
+          <td style="color:var(--warn)">${sol(d.monto_adicional)}</td>
+          <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis">${d.observaciones||'—'}</td>
+        </tr>`).join('')
+      : '<tr><td colspan="8" style="text-align:center;color:var(--text-muted)">Sin registros de daños</td></tr>';
+  } catch(e) { toast(e.message,'error'); }
+}
+
+function showTab(tab) {
+  ['ingresos','productos','danos'].forEach(t => {
+    document.getElementById(`panel-${t}`).style.display = t===tab?'':'none';
+    document.getElementById(`tab-${t.substring(0,3)}`).className = t===tab?'btn btn-primary':'btn btn-outline';
+  });
+}
+
+cargarIngresos();
+cargarProductos();
+cargarDanos();
+</script>
+</body>
+</html>
