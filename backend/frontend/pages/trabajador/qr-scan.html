@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Escanear QR — Menaje</title>
+  <link rel="stylesheet" href="/assets/css/main.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-brand">🍽 <span>Menaje</span></div>
+    <div class="sidebar-user"><strong id="sidebar-user-name"></strong><span id="sidebar-user-rol"></span></div>
+    <nav>
+      <a href="/pages/trabajador/dashboard.html"><span class="icon">📋</span>Alquileres</a>
+      <a href="/pages/trabajador/inventario.html"><span class="icon">📦</span>Inventario</a>
+      <a href="/pages/trabajador/qr-scan.html" class="active"><span class="icon">📱</span>Escanear QR</a>
+    </nav>
+    <div class="sidebar-footer"><button onclick="logout()">Cerrar sesión</button></div>
+  </aside>
+
+  <main class="main-content">
+    <div class="topbar"><button id="menu-toggle" class="btn-menu-toggle">☰</button><h1>📱 Escanear QR</h1></div>
+
+    <!-- Ingreso manual de token (desde URL o teclado) -->
+    <div class="card" style="max-width:560px;margin:0 auto">
+      <p style="color:var(--text-muted);margin-bottom:16px">
+        Ingresa el token del QR (se autorrellena si vienes desde un código QR escaneado) o pégalo manualmente.
+      </p>
+      <div class="form-group">
+        <label>Token QR</label>
+        <input class="form-control" id="token-input" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"/>
+      </div>
+      <button class="btn btn-primary" onclick="consultarQR()">🔍 Consultar</button>
+      <div style="margin-top:20px">
+  <button class="btn btn-outline" id="btn-camara" onclick="toggleCamara()">📷 Escanear con cámara</button>
+  <div id="camara-box" style="display:none;margin-top:16px">
+    <div id="qr-reader" style="width:100%;border-radius:8px;overflow:hidden;"></div>
+    <button class="btn btn-danger btn-sm" style="margin-top:10px" onclick="detenerCamara()">✖ Cerrar cámara</button>
+  </div>
+</div>
+    </div>
+
+    <!-- Resultado -->
+    <div id="resultado" style="max-width:560px;margin:16px auto;display:none"></div>
+  </main>
+</div>
+
+<script src="/assets/js/app.js"></script>
+<script>
+// Acepta ambos roles
+// Extraer el token del QR de la URL ANTES de cualquier validación de sesión
+const params = new URLSearchParams(location.search);
+const qrTokenFromUrl = params.get('token');
+
+// Acepta ambos roles
+if (!Auth.token) {
+  if (qrTokenFromUrl) localStorage.setItem('pending_qr_token', qrTokenFromUrl);
+  location.href = '/index.html';
+  throw new Error('no auth');
+}
+if (!['trabajador','dueno'].includes(Auth.usuario?.rol)) {
+  if (qrTokenFromUrl) localStorage.setItem('pending_qr_token', qrTokenFromUrl);
+  location.href = '/index.html';
+  throw new Error('rol');
+}
+
+// Auto-rellenar: prioriza el token de la URL actual; si no hay, usa uno pendiente guardado en el login
+const tokenPendiente = qrTokenFromUrl || localStorage.getItem('pending_qr_token');
+if (tokenPendiente) {
+  document.getElementById('token-input').value = tokenPendiente;
+  localStorage.removeItem('pending_qr_token'); // se consume una sola vez
+  setTimeout(consultarQR, 400);
+}
+
+async function consultarQR() {
+  const token = document.getElementById('token-input').value.trim();
+  if (!token) return toast('Ingresa un token', 'warn');
+  try {
+    const data = await apiFetch(`/qr/${token}`);
+    mostrarResultado(data, token);
+  } catch(e) { toast(e.message,'error'); }
+}
+
+function mostrarResultado({ alquiler: a, siguiente_estado }, token) {
+  const div = document.getElementById('resultado');
+  div.style.display = '';
+
+  const accionLabel = {
+    entregado:   '📦 Marcar como ENTREGADO',
+    recogido:    '🚚 Marcar como RECOGIDO',
+    en_revision: '🔍 Pasar a REVISIÓN'
+  }[siguiente_estado];
+
+  div.innerHTML = `
+    <div class="card">
+      <div class="card-title">Alquiler #${a.id}</div>
+      <div style="display:grid;gap:8px;margin-bottom:16px">
+        <div><strong>Cliente:</strong> ${a.cliente_nombre}</div>
+        <div><strong>Dirección:</strong> ${a.direccion_evento}</div>
+        <div><strong>Entrega:</strong> ${fmtFecha(a.fecha_entrega)} &nbsp; <strong>Recojo:</strong> ${fmtFecha(a.fecha_recojo)}</div>
+        <div><strong>Total:</strong> ${sol(a.total)}</div>
+        <div><strong>Estado actual:</strong> ${badgeEstado(a.estado)}</div>
+      </div>
+      ${siguiente_estado
+        ? `<button class="btn btn-success" onclick="avanzar('${token}')">${accionLabel}</button>`
+        : `<div style="color:var(--text-muted);padding:12px;background:#f8fafc;border-radius:8px">
+             ✅ Este alquiler ya no tiene transiciones pendientes por QR (estado: <strong>${a.estado}</strong>)
+           </div>`}
+    </div>`;
+}
+
+async function avanzar(token) {
+  try {
+    const r = await apiFetch(`/qr/${token}/avanzar`, { method:'POST' });
+    toast(`Estado actualizado: ${r.estado}`);
+    consultarQR();
+  } catch(e) { toast(e.message,'error'); }
+}
+let html5QrCode = null;
+
+function toggleCamara() {
+  const box = document.getElementById('camara-box');
+  box.style.display = '';
+  document.getElementById('btn-camara').style.display = 'none';
+
+  html5QrCode = new Html5Qrcode('qr-reader');
+  html5QrCode.start(
+    { facingMode: 'environment' },
+    { fps: 10, qrbox: { width: 250, height: 250 } },
+    (decodedText) => {
+      // Extraer el token de la URL escaneada
+      try {
+        const url = new URL(decodedText);
+        const token = url.searchParams.get('token') || decodedText;
+        document.getElementById('token-input').value = token;
+      } catch {
+        document.getElementById('token-input').value = decodedText;
+      }
+      detenerCamara();
+      consultarQR();
+    },
+    () => {} // errores de frame ignorados
+  ).catch(err => toast('No se pudo acceder a la cámara: ' + err, 'error'));
+}
+
+function detenerCamara() {
+  if (html5QrCode) {
+    html5QrCode.stop().catch(() => {});
+    html5QrCode = null;
+  }
+  document.getElementById('camara-box').style.display = 'none';
+  document.getElementById('btn-camara').style.display = '';
+}
+</script>
+</body>
+</html>

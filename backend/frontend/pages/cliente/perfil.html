@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Mi Perfil — Menaje</title>
+  <link rel="stylesheet" href="/assets/css/main.css"/>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-brand">🍽 <span>Menaje</span></div>
+    <div class="sidebar-user"><strong id="sidebar-user-name"></strong><span id="sidebar-user-rol"></span></div>
+    <nav>
+      <a href="/pages/cliente/catalogo.html"><span class="icon">🛒</span>Catálogo</a>
+      <a href="/pages/cliente/mis-alquileres.html"><span class="icon">📋</span>Mis Alquileres</a>
+      <a href="/pages/cliente/perfil.html" class="active"><span class="icon">👤</span>Mi Perfil</a>
+    </nav>
+    <div class="sidebar-footer"><button onclick="logout()">Cerrar sesión</button></div>
+  </aside>
+  <main class="main-content">
+    <div class="topbar">
+      <button id="menu-toggle" class="btn-menu-toggle">☰</button>
+      <h1>👤 Mi Perfil</h1>
+    </div>
+    <div class="card" style="max-width:480px">
+      <div id="perfil-content"><p style="color:var(--text-muted)">Cargando...</p></div>
+    </div>
+  </main>
+</div>
+<script src="/assets/js/app.js"></script>
+<script>
+if (!Auth.requireAuth('cliente')) throw new Error('no auth');
+async function cargar() {
+  try {
+    const u = await apiFetch('/perfil');
+    document.getElementById('perfil-content').innerHTML = `
+      <div style="display:grid;gap:10px;">
+        <div><label style="font-size:.8rem;color:var(--text-muted)">Nombre</label><div style="font-size:1.1rem;font-weight:600">${u.nombre}</div></div>
+        <div><label style="font-size:.8rem;color:var(--text-muted)">DNI</label><div>${u.dni}</div></div>
+        <div><label style="font-size:.8rem;color:var(--text-muted)">Teléfono</label><div>${u.telefono || '—'}</div></div>
+        <div><label style="font-size:.8rem;color:var(--text-muted)">Correo</label><div>${u.correo}</div></div>
+        <div><label style="font-size:.8rem;color:var(--text-muted)">Descuento como cliente frecuente</label>
+          <div style="font-size:1.3rem;font-weight:700;color:var(--success)">${u.descuento_pct > 0 ? u.descuento_pct+'%' : 'Sin descuento aún'}</div></div>
+        <div><label style="font-size:.8rem;color:var(--text-muted)">Miembro desde</label><div>${fmtFecha(u.created_at)}</div></div>
+      </div>`;
+  } catch(e) { toast(e.message,'error'); }
+}
+cargar();
+</script>
+</body>
+</html>
