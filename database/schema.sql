@@ -171,7 +171,7 @@ VALUES (
   '00000000',
   '999000000',
   'admin@menaje.com',
-  '$2b$10$Y5.5G5I7nLzW7FIlYGQ6g.T9M5x3eZMt7iEh2V8hBQO5dZ4xmLbSC',
+  '$2b$10$FjsoVNIyI1hxT1Zrk3ZCQ.4VyoJP/i8lDokJkm8brSCE6My3vX5wm',
   'dueno'
 ); 
 
