@@ -59,11 +59,10 @@ async function crearAlquiler(req, res) {
     const descPct   = desc.rows.length ? parseFloat(desc.rows[0].porcentaje) : 0;
     const descMonto = parseFloat(((subtotal * descPct) / 100).toFixed(2));
 
-    // Garantía fija global
-    const cfg = await client.query("SELECT valor FROM configuracion WHERE clave='garantia_monto'");
-    const garantia = parseFloat(cfg.rows[0].valor);
-
-    const total = parseFloat((subtotal - descMonto + garantia).toFixed(2));
+    // Garantía dinámica = % configurable del subtotal (antes de descuento)
+    const cfg = await client.query("SELECT valor FROM configuracion WHERE clave='garantia_porcentaje'");
+    const porcentaje = parseFloat(cfg.rows[0]?.valor || 20);
+    const garantia = parseFloat((subtotal * (porcentaje / 100)).toFixed(2));
 
     // Insertar alquiler
     const alq = await client.query(
