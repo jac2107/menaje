@@ -18,7 +18,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Archivos estáticos del frontend
-app.use(express.static(path.join(__dirname, '..', 'frontend')));
+app.use(express.static(path.join(__dirname, 'frontend')));
 
 // ── API ───────────────────────────────────────────────────────────────────
 app.use('/api', routes);
@@ -28,7 +28,7 @@ app.get('/api/health', (_req, res) => res.json({ status: 'ok', ts: new Date().to
 
 // ── SPA fallback (todas las rutas no-API sirven index.html) ──────────────
 app.get('*', (_req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'frontend', 'index.html'));
+  res.sendFile(path.join(__dirname, 'frontend', 'index.html'));
 });
 
 // ── Arranque ──────────────────────────────────────────────────────────────
