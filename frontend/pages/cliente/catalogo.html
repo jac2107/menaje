@@ -169,11 +169,15 @@ function quitarItem(i) { carrito.splice(i,1); actualizarCarritoUI(); }
 
 function renderResumen() {
   const subtotal = carrito.reduce((s,x) => s + x.precio_unidad*x.cantidad, 0);
+  const garantia = subtotal * 0.20;
   document.getElementById('carrito-resumen').innerHTML = !carrito.length ? '' : `
     <div style="display:flex;justify-content:space-between;margin-bottom:4px">
       <span>Subtotal</span><strong>${sol(subtotal)}</strong>
     </div>
-    <div style="font-size:.8rem;color:var(--text-muted)">+ Garantía y descuentos se calculan al confirmar</div>`;
+    <div style="display:flex;justify-content:space-between;margin-bottom:4px;color:var(--text-muted)">
+      <span>Garantía (20% del subtotal)</span><strong>${sol(garantia)}</strong>
+    </div>
+    <div style="font-size:.8rem;color:var(--text-muted)">La garantía se devuelve si todo se entrega en buen estado.</div>`;
 }
 
 function abrirCarrito() {

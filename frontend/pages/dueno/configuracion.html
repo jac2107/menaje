@@ -26,14 +26,16 @@
       <button id="menu-toggle" class="btn-menu-toggle">☰</button>
       <h1>Configuración</h1></div>
     <div class="card" style="max-width:480px">
-      <div class="card-title">Monto de Garantía por Alquiler</div>
-      <p style="color:var(--text-muted);margin-bottom:16px;font-size:.9rem">Este monto se añade automáticamente al total de cada alquiler y se gestiona al cerrar.</p>
-      <div class="form-group">
-        <label>Garantía fija (S/)</label>
-        <input type="number" class="form-control" id="garantia-val" step="0.01" min="0"/>
-      </div>
-      <button class="btn btn-success" onclick="guardar()">Guardar</button>
+    <div class="card-title">💰 Porcentaje de Garantía</div>
+    <p style="color:var(--text-muted);margin-bottom:16px;font-size:.9rem">
+      Se calcula automáticamente como este % del subtotal de cada pedido (antes de descuentos) y se suma al total. Se devuelve al cliente si todo se entrega en buen estado.
+    </p>
+    <div class="form-group">
+      <label>Porcentaje de garantía (%)</label>
+      <input type="number" class="form-control" id="garantia-val" step="1" min="0" max="100"/>
     </div>
+    <button class="btn btn-success" onclick="guardar()">💾 Guardar</button>
+  </div>
   </main>
 </div>
 <script src="/assets/js/app.js"></script>
@@ -42,13 +44,13 @@ if (!Auth.requireAuth('dueno')) throw new Error('no auth');
 async function cargar() {
   try {
     const cfg = await apiFetch('/configuracion');
-    document.getElementById('garantia-val').value = cfg.garantia_monto || 500;
+    document.getElementById('garantia-val').value = cfg.garantia_porcentaje || 20;
   } catch(e) { toast(e.message,'error'); }
 }
 async function guardar() {
   const valor = document.getElementById('garantia-val').value;
   try {
-    await apiFetch('/configuracion', { method:'PUT', body: JSON.stringify({ clave:'garantia_monto', valor }) });
+    await apiFetch('/configuracion', { method:'PUT', body: JSON.stringify({ clave:'garantia_porcentaje', valor }) });
     toast('Configuración guardada');
   } catch(e) { toast(e.message,'error'); }
 }
