@@ -110,7 +110,7 @@ function mostrarQR(token, id) {
   document.getElementById('qr-container').innerHTML = '';
   new QRCode(document.getElementById('qr-container'), {
     text: `${window.location.origin}/pages/trabajador/qr-scan.html?token=${token}`,
-    width: 220, height: 220
+    width: 260, height: 260
   });
   document.getElementById('qr-desc').textContent = `Alquiler #${id}`;
   openModal('modal-qr');

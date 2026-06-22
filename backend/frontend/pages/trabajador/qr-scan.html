@@ -131,10 +131,9 @@ function toggleCamara() {
     fps: 15,
     qrbox: { width: 300, height: 300 },
     aspectRatio: 1.0,
-    disableFlip: false,
-    experimentalFeatures: {
-      useBarCodeDetectorIfSupported: true   // usa el decodificador nativo del navegador si está disponible
-    }
+    disableFlip: false
+    // Nota: se evita useBarCodeDetectorIfSupported porque el BarcodeDetector nativo
+    // de varios Android/Chrome falla en reconocer QRs válidos de forma intermitente.
   };
 
   const onScanSuccess = (decodedText) => {
