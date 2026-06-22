@@ -64,6 +64,9 @@ async function crearAlquiler(req, res) {
     const porcentaje = parseFloat(cfg.rows[0]?.valor || 20);
     const garantia = parseFloat((subtotal * (porcentaje / 100)).toFixed(2));
 
+    // ✅ Total = subtotal - descuento + garantía
+    const total = parseFloat((subtotal - descMonto + garantia).toFixed(2));
+
     // Insertar alquiler
     const alq = await client.query(
       `INSERT INTO alquileres
