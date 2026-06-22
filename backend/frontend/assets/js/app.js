@@ -100,9 +100,12 @@ function sol(num) {
 }
 
 // ─── Formato fecha ────────────────────────────────────────────────────────
+// Las fechas son tipo DATE (sin hora), guardadas como medianoche UTC.
+// Se formatea en UTC para que no se corra un día al verla desde un huso
+// horario negativo como el de Perú (UTC-5).
 function fmtFecha(str) {
   if (!str) return '—';
-  return new Date(str).toLocaleDateString('es-PE', { day:'2-digit', month:'short', year:'numeric' });
+  return new Date(str).toLocaleDateString('es-PE', { day:'2-digit', month:'short', year:'numeric', timeZone:'UTC' });
 }
 
 // ─── Formato hora (TIME de Postgres llega como "HH:MM:SS") ────────────────

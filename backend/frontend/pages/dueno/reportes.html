@@ -84,7 +84,7 @@ async function cargarIngresos() {
     const data = await apiFetch('/reportes/ingresos');
     document.getElementById('tbody-ing').innerHTML = data.length
       ? data.map((r,i) => `<tr>
-          <td>${new Date(r.mes).toLocaleDateString('es-PE',{month:'long',year:'numeric'})}</td>
+          <td>${new Date(r.mes).toLocaleDateString('es-PE',{month:'long',year:'numeric',timeZone:'UTC'})}</td>
           <td>${r.total_alquileres}</td><td>${sol(r.ingresos_brutos)}</td>
           <td style="color:var(--warn)">-${sol(r.descuentos)}</td>
           <td>${sol(r.garantias_cobradas)}</td>
