@@ -126,23 +126,40 @@ function irARuta(lat, lng) {
   window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`, '_blank');
 }
 
-// ─── Alertas de entregas atrasadas (sidebar de trabajador y dueño) ────────
+// ─── Alertas de entregas atrasadas / próximas (sidebar de trabajador y dueño) ─
+const ANTICIPACION_MIN = 30; // minutos de anticipación para la alerta amarilla
+
 async function cargarAlertasEntregas() {
   const cont = document.getElementById('sidebar-alertas');
   if (!cont) return;
   try {
     const alqs = await apiFetch('/alquileres?estado=confirmado');
     const ahora = new Date();
-    const atrasados = alqs.filter(a => {
+    const atrasados = [], proximos = [];
+    alqs.forEach(a => {
       const fechaSolo = (a.fecha_entrega || '').slice(0, 10);
-      return new Date(`${fechaSolo}T${a.hora_entrega || '00:00:00'}`) <= ahora;
+      const dt = new Date(`${fechaSolo}T${a.hora_entrega || '00:00:00'}`);
+      const minutosFaltantes = (dt - ahora) / 60000;
+      if (minutosFaltantes <= 0) atrasados.push(a);
+      else if (minutosFaltantes <= ANTICIPACION_MIN) proximos.push(a);
     });
-    if (!atrasados.length) { cont.innerHTML = ''; return; }
-    cont.innerHTML = `
-      <div style="margin:0 14px 12px;padding:10px 12px;background:rgba(255,138,128,.14);border:1px solid var(--danger);border-radius:8px">
-        <div style="display:flex;align-items:center;gap:6px;color:var(--danger);font-weight:700;font-size:.8rem;margin-bottom:6px">⚠ Entregas atrasadas</div>
-        ${atrasados.map(a => `<div style="font-size:.76rem;color:var(--text);margin-bottom:2px;line-height:1.4">${a.cliente_nombre} — ${fmtHora(a.hora_entrega)}</div>`).join('')}
-      </div>`;
+
+    let html = '';
+    if (atrasados.length) {
+      html += `
+        <div style="margin:0 14px 10px;padding:10px 12px;background:rgba(255,138,128,.14);border:1px solid var(--danger);border-radius:8px">
+          <div style="display:flex;align-items:center;gap:6px;color:var(--danger);font-weight:700;font-size:.8rem;margin-bottom:6px">⚠ Entregas atrasadas</div>
+          ${atrasados.map(a => `<div style="font-size:.76rem;color:var(--text);margin-bottom:2px;line-height:1.4">${a.cliente_nombre} — ${fmtHora(a.hora_entrega)}</div>`).join('')}
+        </div>`;
+    }
+    if (proximos.length) {
+      html += `
+        <div style="margin:0 14px 12px;padding:10px 12px;background:rgba(var(--gold-rgb),.16);border:1px solid var(--gold);border-radius:8px">
+          <div style="display:flex;align-items:center;gap:6px;color:var(--gold);font-weight:700;font-size:.8rem;margin-bottom:6px">⏱ Entregas próximas</div>
+          ${proximos.map(a => `<div style="font-size:.76rem;color:var(--text);margin-bottom:2px;line-height:1.4">${a.cliente_nombre} — ${fmtHora(a.hora_entrega)}</div>`).join('')}
+        </div>`;
+    }
+    cont.innerHTML = html;
   } catch (e) { /* no interrumpir la navegación por un error de alertas */ }
 }
 if (document.getElementById('sidebar-alertas')) {
