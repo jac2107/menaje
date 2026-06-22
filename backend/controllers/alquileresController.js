@@ -25,8 +25,8 @@ async function stockDisponible(productoId, cantidad, fechaEntrega, fechaRecojo, 
 
 // ─── CU-04: Crear solicitud de alquiler ────────────────────────────────────
 async function crearAlquiler(req, res) {
-  const { items, fecha_entrega, fecha_recojo, direccion_evento, lat, lng } = req.body;
-  if (!items?.length || !fecha_entrega || !fecha_recojo || !direccion_evento)
+  const { items, fecha_entrega, hora_entrega, fecha_recojo, hora_recojo, direccion_evento, lat, lng } = req.body;
+  if (!items?.length || !fecha_entrega || !hora_entrega || !fecha_recojo || !hora_recojo || !direccion_evento)
     return res.status(400).json({ error: 'Faltan campos obligatorios' });
 
   const client = await db.connect();
@@ -70,11 +70,11 @@ async function crearAlquiler(req, res) {
     // Insertar alquiler
     const alq = await client.query(
       `INSERT INTO alquileres
-         (cliente_id, fecha_entrega, fecha_recojo, direccion_evento, lat, lng,
+         (cliente_id, fecha_entrega, hora_entrega, fecha_recojo, hora_recojo, direccion_evento, lat, lng,
           subtotal, descuento_pct, descuento_monto, garantia, total)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        RETURNING *`,
-      [req.usuario.id, fecha_entrega, fecha_recojo, direccion_evento, lat ?? null, lng ?? null,
+      [req.usuario.id, fecha_entrega, hora_entrega, fecha_recojo, hora_recojo, direccion_evento, lat ?? null, lng ?? null,
        subtotal, descPct, descMonto, garantia, total]
     );
     const alquiler = alq.rows[0];
@@ -126,7 +126,7 @@ async function getMisAlquileres(req, res) {
        WHERE a.cliente_id = $1
        ${filtroFecha}
        GROUP BY a.id
-       ORDER BY a.id ASC`,
+       ORDER BY a.id DESC`,
       [req.usuario.id]
     );
     res.json(r.rows);
@@ -159,7 +159,7 @@ async function getAlquileresActivos(req, res) {
     if (q)      { params.push(`%${q}%`); sql += ` AND u.nombre ILIKE $${params.length}`; }
     if (desde)  { params.push(desde); sql += ` AND a.fecha_entrega >= $${params.length}`; }
     if (hasta)  { params.push(hasta); sql += ` AND a.fecha_entrega <= $${params.length}`; }
-    sql += ' GROUP BY a.id, u.nombre, u.telefono ORDER BY a.fecha_entrega ASC';
+    sql += ' GROUP BY a.id, u.nombre, u.telefono ORDER BY a.id DESC';
 
     const r = await db.query(sql, params);
     res.json(r.rows);

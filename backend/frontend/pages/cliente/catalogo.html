@@ -65,8 +65,18 @@
         <input type="date" class="form-control" id="fecha-entrega"/>
       </div>
       <div class="form-group">
+        <label>Hora de entrega</label>
+        <input type="time" class="form-control" id="hora-entrega"/>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
         <label>Fecha de recojo</label>
         <input type="date" class="form-control" id="fecha-recojo"/>
+      </div>
+      <div class="form-group">
+        <label>Hora de recojo</label>
+        <input type="time" class="form-control" id="hora-recojo"/>
       </div>
     </div>
     <div class="form-group">
@@ -211,13 +221,15 @@ function initMapaEvento() {
 function confirmarAlquiler() {
   if (!carrito.length) return toast('Agrega productos al carrito', 'warn');
   const fe = document.getElementById('fecha-entrega').value;
+  const he = document.getElementById('hora-entrega').value;
   const fr = document.getElementById('fecha-recojo').value;
-  if (!fe || !fr) return toast('Completa las fechas', 'warn');
+  const hr = document.getElementById('hora-recojo').value;
+  if (!fe || !he || !fr || !hr) return toast('Completa las fechas y horas', 'warn');
   if (!ubicacionEvento) return toast('Marca la ubicación del evento en el mapa', 'warn');
   if (new Date(fr) < new Date(fe)) return toast('La fecha de recojo no puede ser antes de la entrega', 'warn');
 
   const pedido = {
-    items: carrito, fecha_entrega: fe, fecha_recojo: fr,
+    items: carrito, fecha_entrega: fe, hora_entrega: he, fecha_recojo: fr, hora_recojo: hr,
     direccion_evento: ubicacionEvento.direccion, lat: ubicacionEvento.lat, lng: ubicacionEvento.lng
   };
   sessionStorage.setItem('pedido_pendiente', JSON.stringify(pedido));

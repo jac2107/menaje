@@ -91,8 +91,8 @@ async function cargar() {
     if (!alqs.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">No tienes alquileres aún. ¡Ve al catálogo!</td></tr>'; return; }
     tbody.innerHTML = alqs.map(a => `
       <tr class="row-clickable" onclick="verDetalle(${a.id})">
-        <td>${fmtFecha(a.fecha_entrega)}</td>
-        <td>${fmtFecha(a.fecha_recojo)}</td>
+        <td>${fmtFecha(a.fecha_entrega)} <small style="color:var(--text-muted)">${fmtHora(a.hora_entrega)}</small></td>
+        <td>${fmtFecha(a.fecha_recojo)} <small style="color:var(--text-muted)">${fmtHora(a.hora_recojo)}</small></td>
         <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis">${a.direccion_evento}</td>
         <td><strong>${sol(a.total)}</strong></td>
         <td>${badgeEstado(a.estado)}</td>
@@ -123,7 +123,7 @@ async function verDetalle(id) {
       <div style="margin-bottom:16px">
         <strong>Estado:</strong> ${badgeEstado(a.estado)}<br/>
         <strong>Dirección:</strong> ${a.direccion_evento}<br/>
-        <strong>Entrega:</strong> ${fmtFecha(a.fecha_entrega)} &nbsp; <strong>Recojo:</strong> ${fmtFecha(a.fecha_recojo)}
+        <strong>Entrega:</strong> ${fmtFecha(a.fecha_entrega)} ${fmtHora(a.hora_entrega)} &nbsp; <strong>Recojo:</strong> ${fmtFecha(a.fecha_recojo)} ${fmtHora(a.hora_recojo)}
       </div>
       <table>
         <thead><tr><th>Producto</th><th>Cant.</th><th>Precio</th><th>Subtotal</th></tr></thead>

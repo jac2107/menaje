@@ -105,10 +105,46 @@ function fmtFecha(str) {
   return new Date(str).toLocaleDateString('es-PE', { day:'2-digit', month:'short', year:'numeric' });
 }
 
+// ─── Formato hora (TIME de Postgres llega como "HH:MM:SS") ────────────────
+function fmtHora(str) {
+  if (!str) return '—';
+  return str.slice(0,5);
+}
+
 // ─── Logout ───────────────────────────────────────────────────────────────
 function logout() {
   Auth.clear();
   window.location.href = '/index.html';
+}
+
+// ─── Ruta en Google Maps hacia la ubicación del evento ────────────────────
+function irARuta(lat, lng) {
+  if (!lat || !lng) return toast('Este alquiler no tiene ubicación registrada', 'warn');
+  window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`, '_blank');
+}
+
+// ─── Alertas de entregas atrasadas (sidebar de trabajador y dueño) ────────
+async function cargarAlertasEntregas() {
+  const cont = document.getElementById('sidebar-alertas');
+  if (!cont) return;
+  try {
+    const alqs = await apiFetch('/alquileres?estado=confirmado');
+    const ahora = new Date();
+    const atrasados = alqs.filter(a => {
+      const fechaSolo = (a.fecha_entrega || '').slice(0, 10);
+      return new Date(`${fechaSolo}T${a.hora_entrega || '00:00:00'}`) <= ahora;
+    });
+    if (!atrasados.length) { cont.innerHTML = ''; return; }
+    cont.innerHTML = `
+      <div style="margin:0 14px 12px;padding:10px 12px;background:rgba(255,138,128,.14);border:1px solid var(--danger);border-radius:8px">
+        <div style="display:flex;align-items:center;gap:6px;color:var(--danger);font-weight:700;font-size:.8rem;margin-bottom:6px">⚠ Entregas atrasadas</div>
+        ${atrasados.map(a => `<div style="font-size:.76rem;color:var(--text);margin-bottom:2px;line-height:1.4">${a.cliente_nombre} — ${fmtHora(a.hora_entrega)}</div>`).join('')}
+      </div>`;
+  } catch (e) { /* no interrumpir la navegación por un error de alertas */ }
+}
+if (document.getElementById('sidebar-alertas')) {
+  cargarAlertasEntregas();
+  setInterval(cargarAlertasEntregas, 60000);
 }
 
 // ─── Inicializar sidebar usuario ──────────────────────────────────────────
