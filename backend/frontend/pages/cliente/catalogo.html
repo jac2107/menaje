@@ -32,21 +32,36 @@
       </button>
     </div>
 
-    <!-- Filtros -->
-    <div class="card" style="margin-bottom:16px;">
-      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
-        <div class="form-group" style="margin:0;flex:1;min-width:180px;">
-          <label>Buscar</label>
-          <input class="form-control" id="q" placeholder="Nombre del producto..." oninput="cargarCatalogo()"/>
-        </div>
-      </div>
-      <div class="filter-chips" id="filtro-cat" style="margin-top:12px">
-        <button type="button" class="filter-chip active" data-val="">Todas</button>
-      </div>
+    <!-- Tabs vista -->
+    <div class="filter-chips" style="margin-bottom:16px">
+      <button type="button" class="filter-chip active" id="tab-productos" onclick="cambiarVista('productos')">Productos individuales</button>
+      <button type="button" class="filter-chip" id="tab-paquetes" onclick="cambiarVista('paquetes')">Paquetes</button>
     </div>
 
-    <!-- Productos grid -->
-    <div id="productos-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;"></div>
+    <!-- VISTA: Productos individuales -->
+    <div id="vista-productos">
+      <!-- Filtros -->
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+          <div class="form-group" style="margin:0;flex:1;min-width:180px;">
+            <label>Buscar</label>
+            <input class="form-control" id="q" placeholder="Nombre del producto..." oninput="cargarCatalogo()"/>
+          </div>
+        </div>
+        <div class="filter-chips" id="filtro-cat" style="margin-top:12px">
+          <button type="button" class="filter-chip active" data-val="">Todas</button>
+        </div>
+      </div>
+
+      <!-- Productos grid -->
+      <div id="productos-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;"></div>
+    </div>
+
+    <!-- VISTA: Paquetes -->
+    <div id="vista-paquetes" style="display:none">
+      <p style="color:var(--text-muted);margin-bottom:16px">Combos listos con varios productos incluidos, pensados para 10 personas. Elige la cantidad según el tamaño de tu evento.</p>
+      <div id="paquetes-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;"></div>
+    </div>
   </main>
 </div>
 
@@ -98,6 +113,50 @@ if (!Auth.requireAuth('cliente')) throw new Error('no auth');
 let carrito = [];
 let categoriaFiltro = '';
 let mapaEvento = null, marcadorEvento = null, ubicacionEvento = null;
+let paquetesCache = [];
+
+function cambiarVista(v) {
+  document.getElementById('tab-productos').classList.toggle('active', v === 'productos');
+  document.getElementById('tab-paquetes').classList.toggle('active', v === 'paquetes');
+  document.getElementById('vista-productos').style.display = v === 'productos' ? '' : 'none';
+  document.getElementById('vista-paquetes').style.display  = v === 'paquetes'  ? '' : 'none';
+  if (v === 'paquetes' && !paquetesCache.length) cargarPaquetes();
+}
+
+async function cargarPaquetes() {
+  try {
+    paquetesCache = await apiFetch('/paquetes/catalogo');
+    renderPaquetes();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+function renderPaquetes() {
+  const grid = document.getElementById('paquetes-grid');
+  if (!paquetesCache.length) { grid.innerHTML = '<p style="color:var(--text-muted)">No hay paquetes disponibles.</p>'; return; }
+  grid.innerHTML = paquetesCache.map(pq => `
+    <div class="card" style="padding:16px;">
+      ${pq.foto_url ? `<img src="${pq.foto_url}" style="width:100%;height:140px;object-fit:cover;border-radius:8px;margin-bottom:12px;" />` : ''}
+      <div style="font-weight:700;margin-bottom:4px">${pq.nombre}</div>
+      <div style="font-size:.8rem;color:var(--text-muted);margin-bottom:8px">${pq.descripcion || ''}</div>
+      <div style="font-size:.76rem;color:var(--text-muted);margin-bottom:10px">Incluye: ${pq.items.map(it => `${it.nombre} ×${it.cantidad}`).join(', ')}</div>
+      <div style="font-size:1.1rem;font-weight:700;color:var(--primary);margin-bottom:12px">${sol(pq.precio_unidad)}<span style="font-size:.75rem;font-weight:400;color:var(--text-muted)"> / paquete</span></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="number" id="pqty-${pq.id}" min="1" value="1" class="form-control" style="width:70px;padding:6px;" />
+        <button class="btn btn-primary btn-sm" onclick="agregarPaqueteAlCarrito(${pq.id})">+ Añadir</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function agregarPaqueteAlCarrito(paqueteId) {
+  const pq = paquetesCache.find(p => p.id === paqueteId);
+  if (!pq) return;
+  const qty = parseInt(document.getElementById(`pqty-${paqueteId}`).value) || 1;
+  if (qty < 1) return toast('Cantidad inválida', 'warn');
+  pq.items.forEach(it => agregarItemAlCarrito(it.producto_id, it.nombre, it.precio_unidad, it.cantidad * qty));
+  actualizarCarritoUI();
+  toast(`${pq.nombre} ×${qty} añadido al carrito`);
+}
 
 document.querySelectorAll('#filtro-cat .filter-chip').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -139,17 +198,18 @@ function renderProductos(prods) {
   `).join('');
 }
 
+function agregarItemAlCarrito(producto_id, nombre, precio_unidad, cantidad) {
+  const idx = carrito.findIndex(x => x.producto_id === producto_id);
+  if (idx >= 0) carrito[idx].cantidad += cantidad;
+  else carrito.push({ producto_id, nombre, precio_unidad, cantidad });
+}
+
 function agregarAlCarrito(id, nombre, precio, maxStock) {
   const qty = parseInt(document.getElementById(`qty-${id}`).value) || 1;
   if (qty < 1 || qty > maxStock) return toast('Cantidad inválida', 'warn');
-  const idx = carrito.findIndex(x => x.producto_id === id);
-  if (idx >= 0) {
-    const nuevo = carrito[idx].cantidad + qty;
-    if (nuevo > maxStock) return toast('No hay suficiente stock', 'warn');
-    carrito[idx].cantidad = nuevo;
-  } else {
-    carrito.push({ producto_id: id, nombre, precio_unidad: precio, cantidad: qty });
-  }
+  const existente = carrito.find(x => x.producto_id === id);
+  if ((existente?.cantidad || 0) + qty > maxStock) return toast('No hay suficiente stock', 'warn');
+  agregarItemAlCarrito(id, nombre, precio, qty);
   actualizarCarritoUI();
   toast(`${nombre} añadido al carrito`);
 }

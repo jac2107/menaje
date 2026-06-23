@@ -53,6 +53,8 @@ const ACCENT = '#2563eb';
 const MERCHANT = 'Menaje';
 const ORDER_REF = 'PED-' + Date.now().toString().slice(-6);
 const subtotal = pedido.items.reduce((s,x) => s + x.precio_unidad * x.cantidad, 0);
+const GARANTIA_PCT = 20; // debe coincidir con el % que usa el backend al crear el alquiler
+const garantia = subtotal * (GARANTIA_PCT / 100);
 
 const state = { step:'select', method:'yape', secondsLeft:900, paid:false, processing:false, copied:false,
   card:{ number:'', exp:'', cvv:'', name:'' }, alquiler:null };
@@ -102,10 +104,18 @@ function renderAside(){
         </div>`).join('')}
     </div>
     <div style="height:1px;background:#ecedf1;margin:18px 0 14px;"></div>
-    <div style="font-size:12.5px;color:#a2a8b2;line-height:1.5;">Garantía y descuentos se calculan al confirmar el pago.</div>
-    <div style="margin-top:18px;display:flex;align-items:flex-end;justify-content:space-between;">
-      <span style="font-size:14px;font-weight:600;color:#15171b;">Subtotal</span>
-      <span style="font-size:27px;font-weight:800;letter-spacing:-0.02em;color:#15171b;">${sol(subtotal)}</span>
+    <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+      <span style="font-size:13.5px;color:#3a3f48;font-weight:500;">Subtotal</span>
+      <span style="font-size:13.5px;color:#3a3f48;font-weight:600;">${sol(subtotal)}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+      <span style="font-size:13.5px;color:#8a909a;font-weight:500;">Garantía (${GARANTIA_PCT}%)</span>
+      <span style="font-size:13.5px;color:#8a909a;font-weight:600;">${sol(garantia)}</span>
+    </div>
+    <div style="font-size:12px;color:#a2a8b2;line-height:1.5;">La garantía se devuelve si todo se entrega en buen estado. Descuentos por cliente frecuente, si aplican, se reflejan al confirmar el pago.</div>
+    <div style="margin-top:16px;display:flex;align-items:flex-end;justify-content:space-between;">
+      <span style="font-size:14px;font-weight:600;color:#15171b;">Total estimado</span>
+      <span style="font-size:27px;font-weight:800;letter-spacing:-0.02em;color:#15171b;">${sol(subtotal + garantia)}</span>
     </div>
     <div style="margin-top:20px;display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #ecedf1;border-radius:11px;padding:11px 13px;">
       <span style="width:30px;height:30px;border-radius:8px;background:#fff3e6;color:#c2731a;display:flex;align-items:center;justify-content:center;font-size:15px;flex:none;">⏱</span>

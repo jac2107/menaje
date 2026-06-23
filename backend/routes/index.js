@@ -7,6 +7,7 @@ const prodCtrl      = require('../controllers/productosController');
 const alqCtrl       = require('../controllers/alquileresController');
 const userCtrl      = require('../controllers/usuariosController');
 const reportCtrl    = require('../controllers/reportesController');
+const paqCtrl       = require('../controllers/paquetesController');
 
 // ── AUTH ──────────────────────────────────────────────────────────────────
 router.post('/auth/registrar', authCtrl.registrar);
@@ -18,6 +19,7 @@ router.get('/perfil', autenticar, userCtrl.getMiPerfil);
 // ── CATÁLOGO (público autenticado) ────────────────────────────────────────
 router.get('/categorias',           autenticar, prodCtrl.getCategorias);
 router.get('/productos/catalogo',   autenticar, prodCtrl.getCatalogo);
+router.get('/paquetes/catalogo',    autenticar, paqCtrl.getCatalogo);
 
 // ── INVENTARIO (trabajador / dueño) ───────────────────────────────────────
 router.get('/productos',            autenticar, autorizar('trabajador','dueno'), prodCtrl.getInventario);
