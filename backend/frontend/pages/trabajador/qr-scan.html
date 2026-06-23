@@ -38,6 +38,11 @@
   <div id="camara-box" style="display:none;margin-top:16px">
     <div id="qr-reader" style="width:100%;border-radius:8px;overflow:hidden;"></div>
     <button class="btn btn-danger btn-sm" style="margin-top:10px" onclick="detenerCamara()">Cerrar cámara</button>
+    <div style="margin-top:10px;font-size:.72rem;color:var(--text-muted);display:flex;justify-content:space-between;align-items:center">
+      <span>Diagnóstico en vivo</span>
+      <button class="btn btn-outline btn-sm" onclick="document.getElementById('debug-log').innerHTML=''">Limpiar</button>
+    </div>
+    <div id="debug-log" style="margin-top:6px;max-height:160px;overflow-y:auto;background:rgba(0,0,0,.35);border-radius:6px;padding:8px;font-family:monospace;font-size:.7rem;color:var(--text-muted);line-height:1.5"></div>
   </div>
 </div>
     </div>
@@ -120,10 +125,19 @@ async function avanzar(token) {
 }
 let html5QrCode = null;
 
+function debugLog(msg) {
+  const el = document.getElementById('debug-log');
+  if (!el) return;
+  const t = new Date().toLocaleTimeString('es-PE', { hour12:false });
+  el.insertAdjacentHTML('beforeend', `<div>[${t}] ${msg}</div>`);
+  el.scrollTop = el.scrollHeight;
+}
+
 function toggleCamara() {
   const box = document.getElementById('camara-box');
   box.style.display = '';
   document.getElementById('btn-camara').style.display = 'none';
+  debugLog('Iniciando cámara...');
 
   html5QrCode = new Html5Qrcode('qr-reader');
 
@@ -149,6 +163,7 @@ function toggleCamara() {
   }
 
   const onScanSuccess = (decodedText) => {
+    debugLog(`✅ DECODIFICADO: "${decodedText}"`);
     try {
       const url = new URL(decodedText);
       const token = url.searchParams.get('token') || decodedText;
@@ -160,15 +175,22 @@ function toggleCamara() {
     consultarQR();
   };
 
+  let intentos = 0;
   const onScanFailure = (errorMessage) => {
-    console.debug('[QR scan] intento de lectura sin éxito:', errorMessage);
+    intentos++;
+    if (intentos % 10 === 1) debugLog(`intento de lectura sin éxito (x${intentos}): ${errorMessage}`);
   };
 
   html5QrCode.start({ facingMode: { exact: 'environment' } }, buildConfig({ exact: 'environment' }), onScanSuccess, onScanFailure)
+    .then(() => debugLog('Cámara trasera (exact) iniciada correctamente.'))
     .catch((err) => {
-      console.warn('Cámara trasera exacta no disponible, reintentando en modo flexible:', err);
+      debugLog(`⚠ Cámara trasera exacta falló: ${err}. Reintentando flexible...`);
       html5QrCode.start({ facingMode: 'environment' }, buildConfig('environment'), onScanSuccess, onScanFailure)
-        .catch((err2) => toast('No se pudo acceder a la cámara: ' + err2, 'error'));
+        .then(() => debugLog('Cámara trasera (flexible) iniciada correctamente.'))
+        .catch((err2) => {
+          debugLog(`❌ No se pudo acceder a la cámara: ${err2}`);
+          toast('No se pudo acceder a la cámara: ' + err2, 'error');
+        });
     });
 }
 
