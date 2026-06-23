@@ -134,6 +134,12 @@ function toggleCamara() {
     disableFlip: false,
     experimentalFeatures: {
       useBarCodeDetectorIfSupported: true   // usa el decodificador nativo del navegador si está disponible
+    },
+    videoConstraints: {
+      // Sin esto, getUserMedia entrega un stream de baja resolución por defecto
+      // en muchos navegadores móviles, insuficiente para decodificar el QR.
+      width:  { min: 1280, ideal: 1920 },
+      height: { min: 720,  ideal: 1080 }
     }
   };
 
