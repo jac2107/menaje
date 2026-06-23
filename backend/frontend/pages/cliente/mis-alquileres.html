@@ -50,7 +50,7 @@
       <button class="modal-close" onclick="closeModal('modal-qr')">×</button>
     </div>
     <p style="color:var(--text-muted);margin-bottom:16px;font-size:.9rem">Muestra este código al trabajador para registrar la entrega o recojo.</p>
-    <div id="qr-container" style="display:flex;justify-content:center;"></div>
+    <div id="qr-container" style="display:flex;justify-content:center;background:#fff;padding:28px;border-radius:12px;"></div>
     <p id="qr-desc" style="margin-top:12px;font-size:.8rem;color:var(--text-muted)"></p>
     <button class="btn btn-outline" style="width:100%;justify-content:center;margin-top:8px" onclick="descargarQR('qr-container','qr-' + (qrIdActual||'menaje') + '.png')">Descargar imagen</button>
   </div>
