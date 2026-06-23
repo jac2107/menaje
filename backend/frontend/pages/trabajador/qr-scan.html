@@ -127,21 +127,26 @@ function toggleCamara() {
 
   html5QrCode = new Html5Qrcode('qr-reader');
 
-  const config = {
-    fps: 15,
-    qrbox: { width: 300, height: 300 },
-    aspectRatio: 1.0,
-    disableFlip: false,
-    experimentalFeatures: {
-      useBarCodeDetectorIfSupported: true   // usa el decodificador nativo del navegador si está disponible
-    },
-    videoConstraints: {
-      // Sin esto, getUserMedia entrega un stream de baja resolución por defecto
-      // en muchos navegadores móviles, insuficiente para decodificar el QR.
-      width:  { min: 1280, ideal: 1920 },
-      height: { min: 720,  ideal: 1080 }
-    }
-  };
+  // videoConstraints reemplaza (no combina) las restricciones de cámara del
+  // primer argumento de start(), así que el facingMode debe ir aquí también.
+  function buildConfig(facingMode) {
+    return {
+      fps: 15,
+      qrbox: { width: 300, height: 300 },
+      aspectRatio: 1.0,
+      disableFlip: false,
+      experimentalFeatures: {
+        useBarCodeDetectorIfSupported: true   // usa el decodificador nativo del navegador si está disponible
+      },
+      videoConstraints: {
+        // Sin esto, getUserMedia entrega un stream de baja resolución por defecto
+        // en muchos navegadores móviles, insuficiente para decodificar el QR.
+        facingMode,
+        width:  { min: 1280, ideal: 1920 },
+        height: { min: 720,  ideal: 1080 }
+      }
+    };
+  }
 
   const onScanSuccess = (decodedText) => {
     try {
@@ -159,10 +164,10 @@ function toggleCamara() {
     console.debug('[QR scan] intento de lectura sin éxito:', errorMessage);
   };
 
-  html5QrCode.start({ facingMode: { exact: 'environment' } }, config, onScanSuccess, onScanFailure)
+  html5QrCode.start({ facingMode: { exact: 'environment' } }, buildConfig({ exact: 'environment' }), onScanSuccess, onScanFailure)
     .catch((err) => {
       console.warn('Cámara trasera exacta no disponible, reintentando en modo flexible:', err);
-      html5QrCode.start({ facingMode: 'environment' }, config, onScanSuccess, onScanFailure)
+      html5QrCode.start({ facingMode: 'environment' }, buildConfig('environment'), onScanSuccess, onScanFailure)
         .catch((err2) => toast('No se pudo acceder a la cámara: ' + err2, 'error'));
     });
 }
