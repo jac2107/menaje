@@ -158,9 +158,11 @@ function toggleCamara() {
       videoConstraints: {
         // Sin esto, getUserMedia entrega un stream de baja resolución por defecto
         // en muchos navegadores móviles, insuficiente para decodificar el QR.
+        // Solo "ideal" (sin "min"): si el celular no soporta esa resolución,
+        // el navegador usa la mejor disponible en vez de fallar por completo.
         facingMode,
-        width:  { min: 1280, ideal: 1920 },
-        height: { min: 720,  ideal: 1080 }
+        width:  { ideal: 1920 },
+        height: { ideal: 1080 }
       }
     };
   }
