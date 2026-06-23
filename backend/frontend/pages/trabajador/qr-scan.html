@@ -146,7 +146,10 @@ function toggleCamara() {
   function buildConfig(facingMode) {
     return {
       fps: 15,
-      qrbox: { width: 300, height: 300 },
+      // Sin qrbox: analiza el frame completo, evitando el mal cálculo de
+      // html5-qrcode al mapear el recuadro visual a la resolución real del
+      // video cuando hay una diferencia grande entre ambas (como ahora,
+      // que pedimos video en 1920x1080 pero se muestra en ~300px en pantalla).
       aspectRatio: 1.0,
       disableFlip: false,
       experimentalFeatures: {
