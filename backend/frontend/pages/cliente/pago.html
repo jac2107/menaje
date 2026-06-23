@@ -225,7 +225,7 @@ function renderConfirm(){
       </div>`;
     new QRCode(document.getElementById('qr-render'), {
       text: `${window.location.origin}/pages/trabajador/qr-scan.html?token=${alq.qr_token}`,
-      width: 260, height: 260
+      width: 190, height: 190
     });
     return;
   }
