@@ -60,5 +60,9 @@ router.get('/reportes/dashboard',        autenticar, autorizar('dueno'), reportC
 router.get('/reportes/ingresos',         autenticar, autorizar('dueno'), reportCtrl.reporteIngresos);
 router.get('/reportes/productos',        autenticar, autorizar('dueno'), reportCtrl.reporteProductos);
 router.get('/reportes/danos',            autenticar, autorizar('dueno'), reportCtrl.reporteDanos);
+router.get('/reportes/metodos-pago',     autenticar, autorizar('dueno'), reportCtrl.reporteMetodosPago);
+router.get('/reportes/categorias',       autenticar, autorizar('dueno'), reportCtrl.reporteCategorias);
+router.get('/reportes/clientes',         autenticar, autorizar('dueno'), reportCtrl.reporteClientes);
+router.get('/reportes/resumen-financiero', autenticar, autorizar('dueno'), reportCtrl.resumenFinanciero);
 
 module.exports = router;

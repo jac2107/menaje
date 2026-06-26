@@ -96,4 +96,92 @@ async function dashboard(req, res) {
   }
 }
 
-module.exports = { reporteIngresos, reporteProductos, reporteDanos, dashboard };
+// Ingresos por método de pago
+async function reporteMetodosPago(req, res) {
+  try {
+    const r = await db.query(
+      `SELECT metodo, COUNT(*) AS cantidad_pagos, SUM(monto) AS total
+       FROM pagos
+       GROUP BY metodo
+       ORDER BY total DESC`
+    );
+    res.json(r.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al generar reporte de métodos de pago' });
+  }
+}
+
+// Ingresos por categoría de producto
+async function reporteCategorias(req, res) {
+  try {
+    const r = await db.query(
+      `SELECT c.nombre AS categoria, SUM(ai.subtotal) AS ingresos
+       FROM alquiler_items ai
+       JOIN productos p ON p.id = ai.producto_id
+       JOIN categorias c ON c.id = p.categoria_id
+       GROUP BY c.nombre
+       ORDER BY ingresos DESC`
+    );
+    res.json(r.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al generar reporte de categorías' });
+  }
+}
+
+// Top clientes por gasto total
+async function reporteClientes(req, res) {
+  const limit = parseInt(req.query.limit) || 10;
+  try {
+    const r = await db.query(
+      `SELECT u.id, u.nombre, u.correo,
+              COUNT(a.id) AS total_alquileres,
+              SUM(a.total) AS gasto_total
+       FROM alquileres a
+       JOIN usuarios u ON u.id = a.cliente_id
+       GROUP BY u.id, u.nombre, u.correo
+       ORDER BY gasto_total DESC
+       LIMIT $1`,
+      [limit]
+    );
+    res.json(r.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al generar reporte de clientes' });
+  }
+}
+
+// KPIs financieros: ingresos históricos, ticket promedio, salud de garantías
+async function resumenFinanciero(req, res) {
+  try {
+    const [ing, gar] = await Promise.all([
+      db.query(`SELECT COALESCE(SUM(total),0) AS ingresos_totales,
+                       COALESCE(AVG(total),0) AS ticket_promedio,
+                       COUNT(*) AS total_alquileres
+                FROM alquileres`),
+      db.query(`SELECT COALESCE(SUM(garantia_cobrada),0) AS cobrada,
+                       COALESCE(SUM(monto_devuelto),0) AS devuelta,
+                       COALESCE(SUM(monto_descontado),0) AS descontada,
+                       COALESCE(SUM(monto_adicional),0) AS adicional
+                FROM cierre_garantia`)
+    ]);
+    res.json({
+      ingresos_totales:  parseFloat(ing.rows[0].ingresos_totales),
+      ticket_promedio:   parseFloat(ing.rows[0].ticket_promedio),
+      total_alquileres:  parseInt(ing.rows[0].total_alquileres),
+      garantia_cobrada:    parseFloat(gar.rows[0].cobrada),
+      garantia_devuelta:   parseFloat(gar.rows[0].devuelta),
+      garantia_descontada: parseFloat(gar.rows[0].descontada),
+      garantia_adicional:  parseFloat(gar.rows[0].adicional)
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al generar resumen financiero' });
+  }
+}
+
+module.exports = {
+  reporteIngresos, reporteProductos, reporteDanos, dashboard,
+  reporteMetodosPago, reporteCategorias, reporteClientes, resumenFinanciero
+};

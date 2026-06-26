@@ -4,6 +4,7 @@
   <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <title>Reportes — Menaje</title>
   <link rel="stylesheet" href="/assets/css/main.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 </head>
 <body>
 <div class="layout">
@@ -27,15 +28,25 @@
       <button id="menu-toggle" class="btn-menu-toggle">☰</button>
       <h1>Reportes</h1></div>
 
+    <!-- KPIs financieros -->
+    <div id="kpi-grid" class="kpi-grid" style="margin-bottom:20px"></div>
+
     <!-- Tabs -->
     <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap">
-      <button class="btn btn-primary" id="tab-ing"  onclick="showTab('ingresos')">Ingresos por Mes</button>
-      <button class="btn btn-outline" id="tab-prod" onclick="showTab('productos')">Top Productos</button>
-      <button class="btn btn-outline" id="tab-dan"  onclick="showTab('danos')">Daños y Garantías</button>
+      <button class="btn btn-primary" id="tab-ing"   onclick="showTab('ingresos')">Ingresos por Mes</button>
+      <button class="btn btn-outline" id="tab-prod"  onclick="showTab('productos')">Top Productos</button>
+      <button class="btn btn-outline" id="tab-cat"   onclick="showTab('categorias')">Categorías</button>
+      <button class="btn btn-outline" id="tab-pago"  onclick="showTab('pagos')">Métodos de Pago</button>
+      <button class="btn btn-outline" id="tab-cli"   onclick="showTab('clientes')">Clientes</button>
+      <button class="btn btn-outline" id="tab-dan"   onclick="showTab('danos')">Daños y Garantías</button>
     </div>
 
     <!-- INGRESOS -->
     <div id="panel-ingresos">
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">Evolución de Ingresos</div>
+        <div style="height:300px"><canvas id="chart-ingresos"></canvas></div>
+      </div>
       <div class="card">
         <div class="card-title">Ingresos Mensuales</div>
         <div class="table-wrap">
@@ -49,12 +60,45 @@
 
     <!-- PRODUCTOS -->
     <div id="panel-productos" style="display:none">
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">Top Productos por Ingresos</div>
+        <div style="height:320px"><canvas id="chart-productos"></canvas></div>
+      </div>
       <div class="card">
         <div class="card-title">Productos más alquilados (Top 10)</div>
         <div class="table-wrap">
           <table>
             <thead><tr><th>#</th><th>Producto</th><th>Categoría</th><th>Veces alquilado</th><th>Ingresos generados</th></tr></thead>
             <tbody id="tbody-prod"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- CATEGORÍAS -->
+    <div id="panel-categorias" style="display:none">
+      <div class="card">
+        <div class="card-title">Ingresos por Categoría de Producto</div>
+        <div style="height:340px;max-width:480px;margin:0 auto"><canvas id="chart-categorias"></canvas></div>
+      </div>
+    </div>
+
+    <!-- MÉTODOS DE PAGO -->
+    <div id="panel-pagos" style="display:none">
+      <div class="card">
+        <div class="card-title">Ingresos por Método de Pago</div>
+        <div style="height:340px;max-width:480px;margin:0 auto"><canvas id="chart-pagos"></canvas></div>
+      </div>
+    </div>
+
+    <!-- CLIENTES -->
+    <div id="panel-clientes" style="display:none">
+      <div class="card">
+        <div class="card-title">Top Clientes por Gasto Total</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Cliente</th><th>Correo</th><th>Alquileres</th><th>Gasto total</th></tr></thead>
+            <tbody id="tbody-cli"></tbody>
           </table>
         </div>
       </div>
@@ -79,6 +123,33 @@
 <script>
 if (!Auth.requireAuth('dueno')) throw new Error('no auth');
 
+const CHART_COLORS = ['#36ada3','#2f578a','#d9b25e','#ff8a80','#44c08a','#8a7ad9','#e07b39','#6fb3e0'];
+
+async function cargarKpis() {
+  try {
+    const k = await apiFetch('/reportes/resumen-financiero');
+    document.getElementById('kpi-grid').innerHTML = `
+      <div class="kpi-card">
+        <div class="kpi-label">Ingresos totales</div>
+        <div class="kpi-value">${sol(k.ingresos_totales)}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Ticket promedio</div>
+        <div class="kpi-value">${sol(k.ticket_promedio)}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Total de alquileres</div>
+        <div class="kpi-value">${k.total_alquileres}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Garantías: cobrada / devuelta</div>
+        <div class="kpi-value" style="font-size:1.1rem">${sol(k.garantia_cobrada)} / ${sol(k.garantia_devuelta)}</div>
+      </div>`;
+  } catch(e) { toast(e.message,'error'); }
+}
+
+let chartIngresos, chartProductos, chartCategorias, chartPagos;
+
 async function cargarIngresos() {
   try {
     const data = await apiFetch('/reportes/ingresos');
@@ -91,6 +162,21 @@ async function cargarIngresos() {
           <td><strong>${sol(r.total_facturado)}</strong></td>
         </tr>`).join('')
       : '<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">Sin datos</td></tr>';
+
+    const ordenado = [...data].reverse(); // cronológico para el gráfico
+    const labels = ordenado.map(r => new Date(r.mes).toLocaleDateString('es-PE',{month:'short',year:'numeric',timeZone:'UTC'}));
+    chartIngresos?.destroy();
+    chartIngresos = new Chart(document.getElementById('chart-ingresos'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label:'Ingresos brutos', data: ordenado.map(r=>parseFloat(r.ingresos_brutos)), borderColor:CHART_COLORS[0], backgroundColor:CHART_COLORS[0]+'33', tension:.3, fill:true },
+          { label:'Total facturado', data: ordenado.map(r=>parseFloat(r.total_facturado)), borderColor:CHART_COLORS[1], backgroundColor:CHART_COLORS[1]+'33', tension:.3, fill:true }
+        ]
+      },
+      options: { responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true } } }
+    });
   } catch(e) { toast(e.message,'error'); }
 }
 
@@ -100,6 +186,58 @@ async function cargarProductos() {
     document.getElementById('tbody-prod').innerHTML = data.map((p,i) => `
       <tr><td>${i+1}</td><td><strong>${p.nombre}</strong></td><td>${p.categoria}</td>
           <td>${p.veces_alquilado}</td><td>${sol(p.ingresos_generados)}</td></tr>`).join('');
+
+    chartProductos?.destroy();
+    chartProductos = new Chart(document.getElementById('chart-productos'), {
+      type: 'bar',
+      data: {
+        labels: data.map(p => p.nombre),
+        datasets: [{ label:'Ingresos generados', data: data.map(p=>parseFloat(p.ingresos_generados)), backgroundColor: CHART_COLORS[0] }]
+      },
+      options: { indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } } }
+    });
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function cargarCategorias() {
+  try {
+    const data = await apiFetch('/reportes/categorias');
+    chartCategorias?.destroy();
+    chartCategorias = new Chart(document.getElementById('chart-categorias'), {
+      type: 'doughnut',
+      data: {
+        labels: data.map(c => c.categoria),
+        datasets: [{ data: data.map(c=>parseFloat(c.ingresos)), backgroundColor: CHART_COLORS }]
+      },
+      options: { responsive:true, maintainAspectRatio:false }
+    });
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function cargarPagos() {
+  try {
+    const data = await apiFetch('/reportes/metodos-pago');
+    chartPagos?.destroy();
+    chartPagos = new Chart(document.getElementById('chart-pagos'), {
+      type: 'doughnut',
+      data: {
+        labels: data.map(p => p.metodo),
+        datasets: [{ data: data.map(p=>parseFloat(p.total)), backgroundColor: CHART_COLORS }]
+      },
+      options: { responsive:true, maintainAspectRatio:false }
+    });
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function cargarClientes() {
+  try {
+    const data = await apiFetch('/reportes/clientes');
+    document.getElementById('tbody-cli').innerHTML = data.length
+      ? data.map((c,i) => `<tr>
+          <td>${i+1}</td><td><strong>${c.nombre}</strong></td><td>${c.correo}</td>
+          <td>${c.total_alquileres}</td><td>${sol(c.gasto_total)}</td>
+        </tr>`).join('')
+      : '<tr><td colspan="5" style="text-align:center;color:var(--text-muted)">Sin datos</td></tr>';
   } catch(e) { toast(e.message,'error'); }
 }
 
@@ -118,15 +256,22 @@ async function cargarDanos() {
   } catch(e) { toast(e.message,'error'); }
 }
 
+const TABS = ['ingresos','productos','categorias','pagos','clientes','danos'];
+const TAB_BTN = { ingresos:'tab-ing', productos:'tab-prod', categorias:'tab-cat', pagos:'tab-pago', clientes:'tab-cli', danos:'tab-dan' };
+
 function showTab(tab) {
-  ['ingresos','productos','danos'].forEach(t => {
+  TABS.forEach(t => {
     document.getElementById(`panel-${t}`).style.display = t===tab?'':'none';
-    document.getElementById(`tab-${t.substring(0,3)}`).className = t===tab?'btn btn-primary':'btn btn-outline';
+    document.getElementById(TAB_BTN[t]).className = t===tab?'btn btn-primary':'btn btn-outline';
   });
 }
 
+cargarKpis();
 cargarIngresos();
 cargarProductos();
+cargarCategorias();
+cargarPagos();
+cargarClientes();
 cargarDanos();
 </script>
 </body>

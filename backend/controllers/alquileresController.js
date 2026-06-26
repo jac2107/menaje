@@ -25,7 +25,7 @@ async function stockDisponible(productoId, cantidad, fechaEntrega, fechaRecojo, 
 
 // ─── CU-04: Crear solicitud de alquiler ────────────────────────────────────
 async function crearAlquiler(req, res) {
-  const { items, fecha_entrega, hora_entrega, fecha_recojo, hora_recojo, direccion_evento, lat, lng } = req.body;
+  const { items, fecha_entrega, hora_entrega, fecha_recojo, hora_recojo, direccion_evento, lat, lng, metodo_pago } = req.body;
   if (!items?.length || !fecha_entrega || !hora_entrega || !fecha_recojo || !hora_recojo || !direccion_evento)
     return res.status(400).json({ error: 'Faltan campos obligatorios' });
 
@@ -87,6 +87,13 @@ async function crearAlquiler(req, res) {
         [alquiler.id, item.producto_id, item.cantidad, item.precio_unidad]
       );
     }
+
+    // Registrar el pago (la pasarela es simulada, pero el método elegido sí se guarda)
+    await client.query(
+      `INSERT INTO pagos (alquiler_id, monto, metodo, registrado_por)
+       VALUES ($1,$2,$3,$4)`,
+      [alquiler.id, total, metodo_pago || 'otro', req.usuario.id]
+    );
 
     await client.query('COMMIT');
     res.status(201).json(alquiler);

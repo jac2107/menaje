@@ -358,7 +358,7 @@ async function markPaid(){
 async function confirmarPagoReal(){
   state.processing = true; renderConfirm();
   try {
-    const alq = await apiFetch('/alquileres', { method: 'POST', body: JSON.stringify(pedido) });
+    const alq = await apiFetch('/alquileres', { method: 'POST', body: JSON.stringify({ ...pedido, metodo_pago: state.method }) });
     sessionStorage.removeItem('pedido_pendiente');
     state.alquiler = alq;
     state.paid = true;
