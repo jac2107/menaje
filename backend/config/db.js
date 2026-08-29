@@ -6,7 +6,7 @@ const pool = new Pool({
   user: 'postgres',
   host: 'localhost',
   database: 'menajeDB',
-  password: '123', // Si usaste otra contraseña en pgAdmin, cámbiala aquí
+  password: '123456789', // Si usaste otra contraseña en pgAdmin, cámbiala aquí
   port: 5432,
 });
 

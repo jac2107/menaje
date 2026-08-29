@@ -250,7 +250,7 @@ async function cargarDanos() {
           <td>${sol(d.garantia_cobrada)}</td><td style="color:var(--danger)">${sol(d.monto_descontado)}</td>
           <td style="color:var(--success)">${sol(d.monto_devuelto)}</td>
           <td style="color:var(--warn)">${sol(d.monto_adicional)}</td>
-          <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis">${d.observaciones||'—'}</td>
+          <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.observaciones||'—'}</td>
         </tr>`).join('')
       : '<tr><td colspan="8" style="text-align:center;color:var(--text-muted)">Sin registros de daños</td></tr>';
   } catch(e) { toast(e.message,'error'); }

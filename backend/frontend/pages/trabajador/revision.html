@@ -65,7 +65,7 @@ function renderForm() {
       ${items.map(i => `
         <div class="card" style="margin-bottom:12px;padding:14px" id="item-${i.id}">
           <div style="font-weight:600;margin-bottom:10px">${i.nombre} <span style="color:var(--text-muted)">(${i.cantidad} unid.)</span></div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+          <div class="grid-3">
             <div class="form-group" style="margin:0">
               <label>OK</label>
               <input type="number" class="form-control item-ok" data-id="${i.id}" min="0" max="${i.cantidad}" value="${i.cantidad}" />

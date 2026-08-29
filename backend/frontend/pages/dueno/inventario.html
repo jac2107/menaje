@@ -124,9 +124,9 @@ async function cargar() {
     document.getElementById('tbody').innerHTML = prods.map(p => `
       <tr>
         <td>
-          <img src="${p.foto_url || 'https://placehold.co/50x50?text=Sin+Foto'}" 
-               alt="${p.nombre}" 
-               style="width: 50px; height: 50px; object-fit: cover; border-radius: 6px; border: 1px solid #ddd;"
+          <img src="${p.foto_url || 'https://placehold.co/50x50?text=Sin+Foto'}"
+               alt="${p.nombre}"
+               style="width: 50px; height: 50px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border);"
                onerror="this.src='https://placehold.co/50x50?text=Sin+Foto'">
         </td>
         

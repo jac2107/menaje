@@ -110,7 +110,7 @@ function mostrarResultado({ alquiler: a, siguiente_estado }, token) {
       </div>
       ${siguiente_estado
         ? `<button class="btn btn-success" onclick="avanzar('${token}')">${accionLabel}</button>`
-        : `<div style="color:var(--text-muted);padding:12px;background:#f8fafc;border-radius:8px">
+        : `<div class="info-box">
              Este alquiler ya no tiene transiciones pendientes por QR (estado: <strong>${a.estado}</strong>)
            </div>`}
     </div>`;

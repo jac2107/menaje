@@ -146,6 +146,30 @@ body {
   color: var(--text); display: flex; align-items: center; gap: 8px;
 }
 
+/* Cards de producto/paquete (catálogo) — realce sutil al pasar el mouse */
+.card-product { transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+.card-product:hover {
+  transform: translateY(-3px);
+  border-color: rgba(var(--accent-rgb),.35);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Panel informativo neutro (reemplaza fondos claros hardcodeados que
+   quedaban ilegibles sobre el tema oscuro) */
+.info-box {
+  background: rgba(255,255,255,.06);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  font-size: .85rem;
+  color: var(--text);
+}
+.info-box small, .info-box strong { color: inherit; }
+
+/* ── Grids responsivos reutilizables ────────────────────────── */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+
 /* ── KPI Grid ────────────────────────────────────────────── */
 .kpi-grid {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -161,7 +185,9 @@ body {
   padding: 20px;
   border: 1px solid var(--border);
   border-left: 4px solid var(--primary);
+  transition: transform .18s ease, box-shadow .18s ease;
 }
+.kpi-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
 .kpi-card::after {
   content: ''; position: absolute; top: -40%; right: -25%;
   width: 160px; height: 160px; border-radius: 50%; pointer-events: none;
@@ -178,8 +204,8 @@ body {
 
 /* ── Tables ──────────────────────────────────────────────── */
 .table-wrap { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; font-size: .9rem; color: var(--text); }
-th { background: rgba(255,255,255,.04); padding: 10px 14px; text-align: left; font-weight: 600; border-bottom: 2px solid var(--border); }
+table { width: 100%; min-width: 620px; border-collapse: collapse; font-size: .9rem; color: var(--text); }
+th { background: rgba(255,255,255,.04); padding: 10px 14px; text-align: left; font-weight: 600; border-bottom: 2px solid var(--border); white-space: nowrap; }
 td { padding: 10px 14px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
 tr:hover td { background: rgba(255,255,255,.05); }
 .row-clickable { cursor: pointer; }
@@ -381,6 +407,8 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   .main-content { margin-left: 0; max-width: 100vw; padding: 16px; }
   .form-row { grid-template-columns: 1fr; }
   .kpi-grid { grid-template-columns: 1fr 1fr; }
+  .grid-2 { grid-template-columns: 1fr; }
+  .grid-3 { grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
 
   .btn-menu-toggle {
     display: inline-flex !important;
@@ -391,7 +419,8 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
     border: 1px solid var(--border);
     color: #ffffff;
     font-size: 1.4rem;
-    padding: 6px 12px;
+    padding: 8px 14px;
+    min-height: 40px;
     border-radius: var(--radius-sm);
     cursor: pointer;
     margin-right: 8px;
@@ -440,6 +469,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 /* Ajuste extra para celulares muy pequeños (pantallas de menos de 480px) */
 @media (max-width: 480px) {
   .kpi-grid { grid-template-columns: 1fr; }
+  .grid-3 { grid-template-columns: 1fr; }
   .topbar { flex-direction: column; align-items: stretch; text-align: center; }
   .topbar .btn { justify-content: center; }
 }

@@ -93,7 +93,7 @@ async function cargar() {
       <tr class="row-clickable" onclick="verDetalle(${a.id})">
         <td>${fmtFecha(a.fecha_entrega)} <small style="color:var(--text-muted)">${fmtHora(a.hora_entrega)}</small></td>
         <td>${fmtFecha(a.fecha_recojo)} <small style="color:var(--text-muted)">${fmtHora(a.hora_recojo)}</small></td>
-        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis">${a.direccion_evento}</td>
+        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.direccion_evento}</td>
         <td><strong>${sol(a.total)}</strong></td>
         <td>${badgeEstado(a.estado)}</td>
         <td>

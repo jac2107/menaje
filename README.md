@@ -9,46 +9,54 @@ Sistema web completo para gestión de alquiler de menaje para eventos. Stack: **
 ```
 menaje/
 ├── backend/
-│   ├── config/db.js              # Conexión PostgreSQL
+│   ├── config/db.js                # Conexión PostgreSQL
 │   ├── controllers/
-│   │   ├── authController.js     # Login y registro
+│   │   ├── authController.js       # Login y registro
 │   │   ├── alquileresController.js
+│   │   ├── paquetesController.js
 │   │   ├── productosController.js
 │   │   ├── usuariosController.js
 │   │   └── reportesController.js
-│   ├── middleware/auth.js         # JWT + roles
-│   ├── routes/index.js            # Todas las rutas API
-│   ├── server.js                  # Punto de entrada
+│   ├── middleware/auth.js          # JWT + roles
+│   ├── routes/index.js             # Todas las rutas API
+│   ├── frontend/                   # Frontend estático servido por Express
+│   │   ├── index.html              # Login / Registro
+│   │   ├── assets/
+│   │   │   ├── css/main.css
+│   │   │   ├── img/
+│   │   │   └── js/app.js
+│   │   └── pages/
+│   │       ├── cliente/
+│   │       │   ├── catalogo.html
+│   │       │   ├── mis-alquileres.html
+│   │       │   ├── mi-cuenta.html
+│   │       │   ├── pago.html
+│   │       │   └── perfil.html
+│   │       ├── trabajador/
+│   │       │   ├── dashboard.html
+│   │       │   ├── inventario.html
+│   │       │   ├── mi-cuenta.html
+│   │       │   ├── qr-scan.html
+│   │       │   └── revision.html
+│   │       └── dueno/
+│   │           ├── dashboard.html
+│   │           ├── alquileres.html
+│   │           ├── inventario.html
+│   │           ├── usuarios.html
+│   │           ├── descuentos.html
+│   │           ├── reportes.html
+│   │           ├── mi-cuenta.html
+│   │           └── configuracion.html
+│   ├── server.js                   # Punto de entrada
 │   ├── .env.example
 │   └── package.json
-├── frontend/
-│   ├── index.html                 # Login / Registro
-│   ├── assets/
-│   │   ├── css/main.css
-│   │   └── js/app.js
-│   └── pages/
-│       ├── cliente/
-│       │   ├── catalogo.html
-│       │   ├── mis-alquileres.html
-│       │   └── perfil.html
-│       ├── trabajador/
-│       │   ├── dashboard.html
-│       │   ├── inventario.html
-│       │   ├── qr-scan.html
-│       │   └── revision.html
-│       └── dueno/
-│           ├── dashboard.html
-│           ├── alquileres.html
-│           ├── inventario.html
-│           ├── usuarios.html
-│           ├── descuentos.html
-│           ├── reportes.html
-│           └── configuracion.html
 └── database/
-    ├── schema.sql
-    └── seed_demo.sql
-
+    ├── schema.sql                  # Esquema de la base de datos (fuente única)
+    ├── seed_demo.sql                # Datos de muestra opcionales
+    └── backups/                     # Dumps locales (ignorado por git)
 ```
+
+> El frontend vive dentro de `backend/frontend/` porque `server.js` lo sirve como estático desde ahí (`express.static`); no es una carpeta separada en la raíz.
 
 ---
 
