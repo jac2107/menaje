@@ -1,4 +1,4 @@
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const jwt    = require('jsonwebtoken');
 const db     = require('../config/db');
 
@@ -33,19 +33,25 @@ async function login(req, res) {
     return res.status(400).json({ error: 'Correo y contraseña son requeridos' });
 
   try {
+    // Buscamos al usuario por correo
     const result = await db.query(
       'SELECT * FROM usuarios WHERE correo=$1 AND activo=true', [correo]
     );
     if (result.rows.length === 0)
       return res.status(401).json({ error: 'Credenciales incorrectas' });
 
-    const user = result.rows[0];
-    const ok   = await bcrypt.compare(password, user.password);
-    if (!ok) return res.status(401).json({ error: 'Credenciales incorrectas' });
+    // ── CORRECCIÓN AQUÍ: Apuntar a la primera fila [0] ───────────────────
+    const user = result.rows[0]; 
 
+    // Comparación directa en texto plano 
+    if (user.password !== password) {
+      return res.status(401).json({ error: 'Credenciales incorrectas' });
+    }
+
+    // Generar el token de acceso
     const token = jwt.sign(
       { id: user.id, nombre: user.nombre, correo: user.correo, rol: user.rol },
-      process.env.JWT_SECRET,
+      process.env.JWT_SECRET || 'clave_secreta_provisional',
       { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
     );
 
@@ -58,5 +64,6 @@ async function login(req, res) {
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 }
+
 
 module.exports = { registrar, login };

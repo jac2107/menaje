@@ -1,9 +1,13 @@
-require('dotenv').config();
+// ── Variables de Entorno y Rutas Obligatorias ──────────────────────────────
+const path    = require('path'); // Cargado en línea 1 para evitar errores de inicialización
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+
 const express = require('express');
 const cors    = require('cors');
-const path    = require('path');
 
 const routes  = require('./routes/index');
+// Conexión a la Base de Datos PostgreSQL
+const pool    = require('./config/db'); 
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -26,8 +30,8 @@ app.use('/api', routes);
 // ── Health check ─────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
 
-// ── SPA fallback (todas las rutas no-API sirven index.html) ──────────────
-app.get('*', (_req, res) => {
+// ── SPA fallback (Sintaxis corregida para path-to-regexp v8) ──────────────
+app.get('{/*splat}', (_req, res) => {
   res.sendFile(path.join(__dirname, 'frontend', 'index.html'));
 });
 
