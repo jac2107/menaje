@@ -44,9 +44,11 @@ async function login(req, res) {
     const user = result.rows[0]; 
 
     // Comparación directa en texto plano 
-    if (user.password !== password) {
-      return res.status(401).json({ error: 'Credenciales incorrectas' });
-    }
+   const passwordCorrecta = await bcrypt.compare(password, user.password);
+
+if (!passwordCorrecta) {
+  return res.status(401).json({ error: 'Credenciales incorrectas' });
+}
 
     // Generar el token de acceso
     const token = jwt.sign(
