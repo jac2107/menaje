@@ -54,7 +54,7 @@ if (!passwordCorrecta) {
     const token = jwt.sign(
       { id: user.id, nombre: user.nombre, correo: user.correo, rol: user.rol },
       process.env.JWT_SECRET || 'clave_secreta_provisional',
-      { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
+      { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
     );
 
     res.json({

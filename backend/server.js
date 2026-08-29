@@ -1,6 +1,6 @@
 // ── Variables de Entorno y Rutas Obligatorias ──────────────────────────────
 const path    = require('path'); // Cargado en línea 1 para evitar errores de inicialización
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const express = require('express');
 const cors    = require('cors');
