@@ -1,4 +1,5 @@
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const router  = express.Router();
 
 const { autenticar, autorizar } = require('../middleware/auth');
@@ -9,9 +10,27 @@ const userCtrl      = require('../controllers/usuariosController');
 const reportCtrl    = require('../controllers/reportesController');
 const paqCtrl       = require('../controllers/paquetesController');
 
+// Máximo 10 intentos por IP cada 15 minutos en rutas de autenticación
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiados intentos, intenta de nuevo más tarde' }
+});
+
+// Máximo 30 alquileres por IP cada 15 minutos
+const alquilerLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiadas solicitudes, intenta de nuevo más tarde' }
+});
+
 // ── AUTH ──────────────────────────────────────────────────────────────────
-router.post('/auth/registrar', authCtrl.registrar);
-router.post('/auth/login',     authCtrl.login);
+router.post('/auth/registrar', authLimiter, authCtrl.registrar);
+router.post('/auth/login',     authLimiter, authCtrl.login);
 
 // ── PERFIL PROPIO ─────────────────────────────────────────────────────────
 router.get('/perfil', autenticar, userCtrl.getMiPerfil);
@@ -29,7 +48,7 @@ router.patch('/productos/:id/stock',autenticar, autorizar('dueno'), prodCtrl.aju
 
 // ── ALQUILERES ────────────────────────────────────────────────────────────
 // Cliente: crear solicitud, ver sus propios alquileres
-router.post('/alquileres',           autenticar, autorizar('cliente'), alqCtrl.crearAlquiler);
+router.post('/alquileres',           alquilerLimiter, autenticar, autorizar('cliente'), alqCtrl.crearAlquiler);
 router.get('/alquileres/mis',        autenticar, autorizar('cliente'), alqCtrl.getMisAlquileres);
 
 // Trabajador / Dueño: ver activos, pago, revisión, cierre

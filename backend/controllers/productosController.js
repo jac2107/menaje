@@ -119,6 +119,9 @@ async function ajustarStock(req, res) {
     else if (tipo === 'baja')  nuevaBaja  += parseInt(cantidad);
     else if (tipo === 'correccion') nuevoTotal = parseInt(cantidad); // reemplazo directo
 
+    if (nuevoTotal < 0 || nuevaBaja < 0 || nuevaBaja > nuevoTotal)
+      return res.status(400).json({ error: 'El ajuste dejaría el stock en un estado inválido' });
+
     await db.query(
       'UPDATE productos SET stock_total=$1, stock_baja=$2 WHERE id=$3',
       [nuevoTotal, nuevaBaja, id]

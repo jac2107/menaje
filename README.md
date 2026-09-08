@@ -47,13 +47,16 @@ menaje/
 │   │           ├── reportes.html
 │   │           ├── mi-cuenta.html
 │   │           └── configuracion.html
+│   ├── python-ia/                  # Reservado para el servicio FastAPI de OPCIÓN 1
 │   ├── server.js                   # Punto de entrada
 │   ├── .env.example
 │   └── package.json
-└── database/
-    ├── schema.sql                  # Esquema de la base de datos (fuente única)
-    ├── seed_demo.sql                # Datos de muestra opcionales
-    └── backups/                     # Dumps locales (ignorado por git)
+├── database/
+│   ├── schema.sql                  # Esquema de la base de datos (fuente única)
+│   ├── seed_demo.sql                # Datos de muestra opcionales
+│   ├── migrations/                  # Cambios incrementales sobre una BD ya existente
+│   └── backups/                     # Dumps locales (ignorado por git)
+└── OPCION_1_INTEGRATION_PLAN.md    # Roadmap de integración de IA (Gemini)
 ```
 
 > El frontend vive dentro de `backend/frontend/` porque `server.js` lo sirve como estático desde ahí (`express.static`); no es una carpeta separada en la raíz.
@@ -86,6 +89,14 @@ psql -U postgres -d menaje_db -f database/schema.sql
 PGCLIENTENCODING=UTF8 psql -U postgres -d menaje_db -f database/seed_demo.sql
 ```
 
+Si ya tienes una base de datos creada con una versión anterior del
+esquema (sin la tabla `conversaciones_ia` ni las validaciones de stock),
+aplica la migración incremental en vez de recrear todo:
+
+```bash
+psql -U postgres -d menaje_db -f database/migrations/001_conversaciones_ia_y_stock_checks.sql
+```
+
 ### 3. Backend
 
 ```bash
@@ -111,7 +122,21 @@ DB_USER=postgres
 DB_PASSWORD=tu_password
 JWT_SECRET=cadena_larga_y_aleatoria_aqui
 JWT_EXPIRES_IN=8h
+UPLOAD_DIR=uploads
+CORS_ORIGIN=http://localhost:3000
+API_GEMINI_KEY=          # se completa al integrar OPCIÓN 1, vacío por ahora
 ```
+
+`JWT_SECRET` debe ser una cadena aleatoria larga real, no el valor de
+ejemplo de arriba. Generar una con:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+```
+
+El servidor falla al arrancar si `JWT_SECRET` o cualquier variable
+`DB_*` no está definida, para evitar quedarse silenciosamente con un
+secreto débil por defecto.
 
 ### 5. Acceder al sistema
 
@@ -185,9 +210,22 @@ Al escanearlo con cualquier lector de QR (celular), se abre automáticamente la 
 ## 🛡 Seguridad
 
 - Contraseñas hasheadas con **bcrypt** (10 rounds)
-- Autenticación con **JWT** (8h de expiración)
+- Autenticación con **JWT** (8h de expiración), `JWT_SECRET` obligatorio
+  desde `.env` (el servidor no arranca sin él)
 - Middleware de roles en cada endpoint sensible
-- CORS configurable en `server.js`
+- Queries SQL siempre parametrizadas (sin concatenación de strings)
+- CORS restringido a `CORS_ORIGIN` (por defecto el propio origen local)
+- Rate limiting en `/api/auth/login`, `/api/auth/registrar` y
+  `POST /api/alquileres` (10-30 solicitudes / 15 min por IP)
+- Rutas `/api/*` no encontradas devuelven JSON 404, nunca HTML
+- Manejador de errores global en `server.js` como red de seguridad
+
+### Pendiente conocido
+
+- `express@4.x` arrastra una dependencia (`qs`) con una vulnerabilidad
+  moderada sin parche disponible en la rama 4.x. Corregirla requiere
+  migrar a `express@5`, un cambio con breaking changes que se evaluará
+  aparte (`npm audit` para detalles).
 
 ---
 
@@ -211,6 +249,18 @@ pm2 save && pm2 startup
 Se puede dockerizar fácilmente con un `Dockerfile` estándar de Node + postgres service.
 
 ---
+
+## 🩹 Errores comunes y soluciones
+
+| Error | Causa probable | Solución |
+|-------|-----------------|----------|
+| `Cannot find module '...'` | Faltan dependencias | `cd backend && npm install` |
+| `Token inválido o expirado` en todas las rutas | `JWT_SECRET` no definido o distinto entre login y validación | Revisar `backend/.env`, confirmar que `middleware/auth.js` y `authController.js` usan el mismo `process.env.JWT_SECRET` |
+| `ECONNREFUSED` / `PostgreSQL connection refused` | PostgreSQL no está corriendo, o credenciales/puerto incorrectos en `.env` | Verificar que el servicio de PostgreSQL esté activo y que `DB_HOST`/`DB_PORT`/`DB_USER`/`DB_PASSWORD` en `.env` coincidan con tu instalación |
+| Bloqueo CORS en el navegador | El frontend se sirve desde un origen distinto al configurado en `CORS_ORIGIN` | Ajustar `CORS_ORIGIN` en `.env` al origen real desde el que se accede |
+| Una ruta `/api/algo` inexistente devuelve HTML en vez de JSON | — (ya corregido) | `server.js` responde JSON 404 para cualquier `/api/*` no definida antes de caer al SPA fallback |
+| `Demasiados intentos, intenta de nuevo más tarde` | Rate limiting activado tras varios intentos fallidos de login en 15 min | Esperar la ventana de 15 minutos o reiniciar el servidor en desarrollo |
+| Falta la tabla `conversaciones_ia` en una BD ya creada | La base se creó antes de la auditoría de OPCIÓN 1 | Ejecutar `database/migrations/001_conversaciones_ia_y_stock_checks.sql` contra tu BD existente |
 
 ## 📞 Soporte
 

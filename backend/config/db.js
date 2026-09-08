@@ -1,22 +1,32 @@
 // backend/config/db.js
 const { Pool } = require('pg');
 
-// Ponemos tus datos reales aquí adentro de forma fija
+const requeridas = ['DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD'];
+const faltantes = requeridas.filter(v => !process.env[v]);
+if (faltantes.length) {
+  throw new Error(`Faltan variables de entorno para la base de datos: ${faltantes.join(', ')}`);
+}
+
 const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'menajeDB',
-  password: '123456789', // Si usaste otra contraseña en pgAdmin, cámbiala aquí
-  port: 5432,
+  host: process.env.DB_HOST,
+  port: parseInt(process.env.DB_PORT, 10),
+  database: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  connectionTimeoutMillis: 30000,
 });
 
 // Probar la conexión al iniciar
-pool.query('SELECT NOW()', (err, res) => {
+pool.query('SELECT NOW()', (err) => {
   if (err) {
     console.error('❌ Error conectando a PostgreSQL:', err.stack);
   } else {
-    console.log('✅ ¡Conexión exitosa a PostgreSQL establecida!');
+    console.log('✅ Conectado a PostgreSQL');
   }
+});
+
+pool.on('error', (err) => {
+  console.error('❌ Error inesperado en cliente PostgreSQL inactivo:', err);
 });
 
 module.exports = pool;

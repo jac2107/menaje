@@ -38,8 +38,8 @@ CREATE TABLE productos (
   categoria_id    INTEGER NOT NULL REFERENCES categorias(id),
   descripcion     TEXT,
   precio_unidad   NUMERIC(10,2) NOT NULL,
-  stock_total     INTEGER NOT NULL DEFAULT 0,
-  stock_baja      INTEGER NOT NULL DEFAULT 0,   -- piezas dadas de baja
+  stock_total     INTEGER NOT NULL DEFAULT 0 CHECK (stock_total >= 0),
+  stock_baja      INTEGER NOT NULL DEFAULT 0 CHECK (stock_baja >= 0 AND stock_baja <= stock_total),   -- piezas dadas de baja
   foto_url        TEXT,
   activo          BOOLEAN DEFAULT TRUE,
   created_at      TIMESTAMPTZ DEFAULT NOW()
@@ -173,6 +173,17 @@ CREATE TABLE stock_movimientos (
   created_at   TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- HISTORIAL DE CONVERSACIONES CON IA (preparación para OPCIÓN 1 - Gemini API)
+CREATE TABLE conversaciones_ia (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  usuario_id       INTEGER NOT NULL REFERENCES usuarios(id),
+  mensaje_usuario  TEXT NOT NULL,
+  respuesta_ia     TEXT NOT NULL,
+  timestamp        TIMESTAMPTZ DEFAULT NOW(),
+  tokens_usados    INTEGER,
+  estado           VARCHAR(20) DEFAULT 'completada'
+);
+
 -- ============================================================
 -- ÍNDICES
 -- ============================================================
@@ -182,6 +193,8 @@ CREATE INDEX idx_alquileres_qr          ON alquileres(qr_token);
 CREATE INDEX idx_alquiler_items_alq     ON alquiler_items(alquiler_id);
 CREATE INDEX idx_revision_alquiler      ON revision_items(alquiler_id);
 CREATE INDEX idx_paquete_items_paquete  ON paquete_items(paquete_id);
+CREATE INDEX idx_conversaciones_usuario   ON conversaciones_ia(usuario_id);
+CREATE INDEX idx_conversaciones_timestamp ON conversaciones_ia(timestamp);
 
 -- ============================================================
 -- USUARIO DUEÑO POR DEFECTO  (password: Admin1234!)

@@ -4,8 +4,9 @@ const db = require('../config/db');
 async function reporteIngresos(req, res) {
   const { desde, hasta } = req.query;
   try {
-    const r = await db.query(
-      `SELECT 
+    const params = [];
+    let sql = `
+      SELECT
          DATE_TRUNC('month', a.fecha_entrega) AS mes,
          COUNT(a.id) AS total_alquileres,
          SUM(a.subtotal) AS ingresos_brutos,
@@ -14,11 +15,12 @@ async function reporteIngresos(req, res) {
          SUM(a.total) AS total_facturado
        FROM alquileres a
        WHERE 1=1
-         ${desde ? `AND a.fecha_entrega >= '${desde}'` : ''}
-         ${hasta ? `AND a.fecha_entrega <= '${hasta}'` : ''}
-       GROUP BY mes
-       ORDER BY mes DESC`
-    );
+    `;
+    if (desde) { params.push(desde); sql += ` AND a.fecha_entrega >= $${params.length}`; }
+    if (hasta) { params.push(hasta); sql += ` AND a.fecha_entrega <= $${params.length}`; }
+    sql += ' GROUP BY mes ORDER BY mes DESC';
+
+    const r = await db.query(sql, params);
     res.json(r.rows);
   } catch (err) {
     console.error(err);
@@ -30,8 +32,9 @@ async function reporteIngresos(req, res) {
 async function reporteProductos(req, res) {
   const { desde, hasta, limit = 10 } = req.query;
   try {
-    const r = await db.query(
-      `SELECT p.nombre, c.nombre AS categoria,
+    const params = [];
+    let sql = `
+      SELECT p.nombre, c.nombre AS categoria,
               SUM(ai.cantidad) AS veces_alquilado,
               SUM(ai.subtotal) AS ingresos_generados
        FROM alquiler_items ai
@@ -39,13 +42,13 @@ async function reporteProductos(req, res) {
        JOIN categorias c ON c.id = p.categoria_id
        JOIN alquileres a ON a.id = ai.alquiler_id
        WHERE 1=1
-         ${desde ? `AND a.fecha_entrega >= '${desde}'` : ''}
-         ${hasta ? `AND a.fecha_entrega <= '${hasta}'` : ''}
-       GROUP BY p.nombre, c.nombre
-       ORDER BY veces_alquilado DESC
-       LIMIT $1`,
-      [limit]
-    );
+    `;
+    if (desde) { params.push(desde); sql += ` AND a.fecha_entrega >= $${params.length}`; }
+    if (hasta) { params.push(hasta); sql += ` AND a.fecha_entrega <= $${params.length}`; }
+    params.push(limit);
+    sql += ` GROUP BY p.nombre, c.nombre ORDER BY veces_alquilado DESC LIMIT $${params.length}`;
+
+    const r = await db.query(sql, params);
     res.json(r.rows);
   } catch (err) {
     console.error(err);

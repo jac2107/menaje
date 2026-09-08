@@ -40,11 +40,9 @@ async function login(req, res) {
     if (result.rows.length === 0)
       return res.status(401).json({ error: 'Credenciales incorrectas' });
 
-    // ── CORRECCIÓN AQUÍ: Apuntar a la primera fila [0] ───────────────────
-    const user = result.rows[0]; 
+    const user = result.rows[0];
 
-    // Comparación directa en texto plano 
-   const passwordCorrecta = await bcrypt.compare(password, user.password);
+    const passwordCorrecta = await bcrypt.compare(password, user.password);
 
 if (!passwordCorrecta) {
   return res.status(401).json({ error: 'Credenciales incorrectas' });
@@ -53,7 +51,7 @@ if (!passwordCorrecta) {
     // Generar el token de acceso
     const token = jwt.sign(
       { id: user.id, nombre: user.nombre, correo: user.correo, rol: user.rol },
-      process.env.JWT_SECRET || 'clave_secreta_provisional',
+      process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
     );
 
