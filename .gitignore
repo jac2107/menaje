@@ -1,3 +1,7 @@
 backend/.env
 node_modules/
 database/backups/
+.env
+*.env
+python-ia/.env
+backend/.env
