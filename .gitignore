@@ -5,3 +5,5 @@ database/backups/
 *.env
 python-ia/.env
 backend/.env
+python-ia/venv/
+python-ia/__pycache__/
