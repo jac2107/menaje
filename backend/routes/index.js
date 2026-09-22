@@ -9,6 +9,8 @@ const alqCtrl       = require('../controllers/alquileresController');
 const userCtrl      = require('../controllers/usuariosController');
 const reportCtrl    = require('../controllers/reportesController');
 const paqCtrl       = require('../controllers/paquetesController');
+const iaService     = require('../services/iaService');
+const iaRateLimiter = require('../middleware/rateLimitIA');
 
 // Máximo 10 intentos por IP cada 15 minutos en rutas de autenticación
 const authLimiter = rateLimit({
@@ -31,6 +33,88 @@ const alquilerLimiter = rateLimit({
 // ── AUTH ──────────────────────────────────────────────────────────────────
 router.post('/auth/registrar', authLimiter, authCtrl.registrar);
 router.post('/auth/login',     authLimiter, authCtrl.login);
+
+// ── IA (OPCIÓN 1) ────────────────────────────────────────────────────────
+/**
+ * POST /api/ia/chat
+ * Chat conversacional con Gemini
+ * Requiere: JWT token en headers
+ * Body: { mensaje: string, historico: array }
+ */
+router.post('/ia/chat', autenticar, iaRateLimiter, async (req, res) => {
+    try {
+        const usuarioId = req.usuario.id; // Viene del JWT
+        const { mensaje, historico = [] } = req.body;
+
+        // VALIDACIONES
+        if (!mensaje || typeof mensaje !== 'string') {
+            return res.status(400).json({
+                success: false,
+                error: 'El campo "mensaje" es requerido y debe ser texto'
+            });
+        }
+
+        if (mensaje.trim().length < 2) {
+            return res.status(400).json({
+                success: false,
+                error: 'El mensaje es muy corto (mínimo 2 caracteres)'
+            });
+        }
+
+        if (mensaje.length > 2000) {
+            return res.status(400).json({
+                success: false,
+                error: 'El mensaje es muy largo (máximo 2000 caracteres)'
+            });
+        }
+
+        console.log(`\n📨 POST /api/ia/chat - Usuario: ${usuarioId}`);
+
+        // Llamar a FastAPI
+        const resultado = await iaService.chatConIA(usuarioId, mensaje, historico);
+
+        if (!resultado.success) {
+            return res.status(500).json({
+                success: false,
+                error: resultado.error
+            });
+        }
+
+        // Retornar respuesta
+        return res.json({
+            success: true,
+            data: resultado.data
+        });
+
+    } catch (error) {
+        console.error('❌ Error en /api/ia/chat:', error.message);
+        return res.status(500).json({
+            success: false,
+            error: 'Error procesando tu solicitud'
+        });
+    }
+});
+
+/**
+ * GET /api/ia/health
+ * Verificar que servicio de IA está disponible
+ */
+router.get('/ia/health', async (req, res) => {
+    try {
+        const iaDisponible = await iaService.verificarIA();
+
+        return res.json({
+            success: true,
+            ia_disponible: iaDisponible,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            error: 'Error verificando servicio IA'
+        });
+    }
+});
 
 // ── PERFIL PROPIO ─────────────────────────────────────────────────────────
 router.get('/perfil', autenticar, userCtrl.getMiPerfil);
