@@ -25,7 +25,6 @@ class ChatWidget {
     init() {
         this.createChatUI();
         this.attachEventListeners();
-        this.loadConversationHistory();
     }
 
     /**
@@ -38,7 +37,8 @@ class ChatWidget {
         }
 
         const chatHTML = `
-            <div class="chat-widget">
+            <button class="chat-launcher" id="chat-launcher" aria-label="Abrir chat">🤖</button>
+            <div class="chat-widget hidden">
                 <!-- Cabecera del chat -->
                 <div class="chat-header">
                     <h3>🤖 Asistente de Menaje</h3>
@@ -106,6 +106,10 @@ class ChatWidget {
         document.getElementById('close-chat').addEventListener('click', () => {
             this.toggle();
         });
+
+        document.getElementById('chat-launcher').addEventListener('click', () => {
+            this.toggle();
+        });
     }
 
     /**
@@ -141,12 +145,15 @@ class ChatWidget {
                 })
             });
 
-            if (!response.ok) {
-                throw new Error(`Error ${response.status}: ${response.statusText}`);
+            const body = await response.json().catch(() => ({}));
+
+            if (!response.ok || body.success === false) {
+                throw new Error(body.error || `Error ${response.status}: ${response.statusText}`);
             }
 
-            const data = await response.json();
-            
+            // Node envuelve la respuesta de FastAPI en { success, data: { respuesta, timestamp, tokens_usados } }
+            const data = body.data || {};
+
             // Agregar respuesta de IA
             this.addMessage(data.respuesta, 'bot', {
                 timestamp: data.timestamp,
@@ -279,37 +286,15 @@ class ChatWidget {
     }
 
     /**
-     * Cargar historial de conversaciones previas
-     */
-    async loadConversationHistory() {
-        try {
-            const response = await fetch(
-                `http://localhost:3000/api/conversaciones-ia?usuario_id=${this.userId}&limit=5`,
-                {
-                    headers: {
-                        'Authorization': `Bearer ${this.getJWT()}`
-                    }
-                }
-            );
-
-            if (response.ok) {
-                const data = await response.json();
-                this.conversationHistory = data.conversaciones || [];
-            }
-        } catch (error) {
-            console.warn('No se pudo cargar historial:', error);
-        }
-    }
-
-    /**
      * Alternar visibilidad del widget
      */
     toggle() {
         this.isOpen = !this.isOpen;
         const widget = document.querySelector('.chat-widget');
-        if (widget) {
-            widget.classList.toggle('hidden', !this.isOpen);
-        }
+        const launcher = document.getElementById('chat-launcher');
+        if (widget) widget.classList.toggle('hidden', !this.isOpen);
+        if (launcher) launcher.classList.toggle('hidden', this.isOpen);
+        if (this.isOpen) this.inputField?.focus();
     }
 
     /**

@@ -4,6 +4,7 @@
   <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <title>Mi Perfil — Menaje</title>
   <link rel="stylesheet" href="/assets/css/main.css"/>
+  <link rel="stylesheet" href="/assets/css/styles-chat-recommendations.css"/>
 </head>
 <body>
 <div class="layout">
@@ -27,6 +28,10 @@
     </div>
   </main>
 </div>
+<!-- Chat Widget IA (FASE 3) -->
+<div id="chat-container"></div>
+<script src="/assets/js/chatwidget.js"></script>
+
 <script src="/assets/js/app.js"></script>
 <script>
 if (!Auth.requireAuth('cliente')) throw new Error('no auth');
