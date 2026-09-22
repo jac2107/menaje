@@ -61,10 +61,10 @@ router.post('/ia/chat', autenticar, iaRateLimiter, async (req, res) => {
             });
         }
 
-        if (mensaje.length > 2000) {
+        if (mensaje.length > 6000) {
             return res.status(400).json({
                 success: false,
-                error: 'El mensaje es muy largo (máximo 2000 caracteres)'
+                error: 'El mensaje es muy largo (máximo 6000 caracteres)'
             });
         }
 
