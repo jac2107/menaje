@@ -8,28 +8,36 @@ class IAIntegration {
     constructor() {
         this.chatWidget = null;
         this.recommendationCards = null;
+        this.integrado = false;   // evita una segunda inicializacion
+        this.checkInterval = null;
+        this.timeoutId = null;
         this.init();
     }
 
     init() {
-        const checkInterval = setInterval(() => {
+        this.checkInterval = setInterval(() => {
             if (window.chatWidget && window.recommendationCards) {
-                clearInterval(checkInterval);
                 this.setupIntegration();
             }
         }, 100);
 
-        setTimeout(() => {
-            clearInterval(checkInterval);
-            if (window.chatWidget && window.recommendationCards) {
-                this.setupIntegration();
-            } else {
+        // Red de seguridad: si a los 5s no se logro, se avisa y se deja de intentar.
+        this.timeoutId = setTimeout(() => {
+            clearInterval(this.checkInterval);
+            if (!this.integrado) {
                 console.warn('IA Integration: Componentes no cargados a tiempo');
             }
         }, 5000);
     }
 
     setupIntegration() {
+        // setupIntegration() envuelve addMessage e inserta un boton: ejecutarlo dos
+        // veces duplicaria ambos (dos peticiones por cada auto-recomendacion).
+        if (this.integrado) return;
+        this.integrado = true;
+        clearInterval(this.checkInterval);
+        clearTimeout(this.timeoutId);
+
         console.log('✅ IA Integration iniciado');
         this.chatWidget = window.chatWidget;
         this.recommendationCards = window.recommendationCards;
@@ -41,6 +49,7 @@ class IAIntegration {
         setTimeout(() => {
             const chatContainer = document.getElementById('chat-container');
             if (!chatContainer) return;
+            if (document.getElementById('ai-rec-button')) return; // ya insertado
 
             const recButton = document.createElement('button');
             recButton.id = 'ai-rec-button';
@@ -135,6 +144,47 @@ class IAIntegration {
         };
     }
 
+    /**
+     * Extrae el numero de asistentes del mensaje. Acepta cifras de 1 a 4 digitos
+     * ("para 8 personas" fallaba con el patron anterior, que exigia 2 digitos),
+     * numeros escritos en palabras ("cincuenta invitados") y un numero suelto
+     * cuando el mensaje ya habla de un evento ("somos 120").
+     * Devuelve null si no hay una cantidad plausible (1-1000, el rango del formulario).
+     */
+    extraerNumeroAsistentes(mensaje) {
+        const texto = mensaje
+            .normalize('NFD')
+            .replace(/[̀-ͯ]/g, '')   // "cumpleanos", "dieciseis"
+            .toLowerCase();
+
+        const sustantivos = IAIntegration.SUSTANTIVOS_ASISTENTES;
+
+        // 1. Cifra seguida (o precedida) del sustantivo: "80 invitados", "invitados: 80"
+        const porCifra =
+            texto.match(new RegExp(`(\\d{1,4})\\s*(?:${sustantivos})`)) ||
+            texto.match(new RegExp(`(?:${sustantivos})\\D{0,10}?(\\d{1,4})`));
+        if (porCifra) {
+            const n = parseInt(porCifra[1], 10);
+            if (n >= 1 && n <= 1000) return n;
+        }
+
+        // 2. Numero en palabras seguido del sustantivo: "cincuenta invitados"
+        const palabras = Object.keys(IAIntegration.NUMEROS_EN_PALABRAS).join('|');
+        const porPalabra = texto.match(new RegExp(`\\b(${palabras})\\b\\s*(?:${sustantivos})`));
+        if (porPalabra) {
+            return IAIntegration.NUMEROS_EN_PALABRAS[porPalabra[1]];
+        }
+
+        // 3. Cifra suelta con verbo de cantidad: "somos 120", "seremos unos 45"
+        const porVerbo = texto.match(/\b(?:somos|seremos|seran|serian|vienen|asisten|para)\s+(?:unos?\s+|unas?\s+)?(\d{1,4})\b/);
+        if (porVerbo) {
+            const n = parseInt(porVerbo[1], 10);
+            if (n >= 1 && n <= 1000) return n;
+        }
+
+        return null;
+    }
+
     extractAndRecommend(mensaje) {
         const mensajeLower = mensaje.toLowerCase();
 
@@ -154,18 +204,83 @@ class IAIntegration {
             }
         }
 
-        const numMatch = mensaje.match(/(\d{2,4})\s*(personas|asistentes|invitados)/i);
-        const numAsistentes = numMatch ? parseInt(numMatch[1]) : null;
+        const numAsistentes = this.extraerNumeroAsistentes(mensaje);
 
         if (numAsistentes) {
-            console.log(`🎯 Auto-recomendación detectada: ${tipoEvento}, ${numAsistentes} asistentes`);
-
+            console.log(`🎯 Intención de recomendación detectada: ${tipoEvento}, ${numAsistentes} asistentes`);
+            // Se ofrece en lugar de ejecutarse: una peticion automatica extra gasta 2 de
+            // las 5 del minuto por mensaje, y la deteccion por palabras clave tiene
+            // falsos positivos ("no me recomiendes copas").
+            setTimeout(() => this.ofrecerRecomendaciones(tipoEvento, numAsistentes), 800);
+        } else {
+            // El usuario pidio recomendaciones pero no dijo cuantos asistentes: mejor
+            // preguntarselo que no hacer nada sin explicacion.
             setTimeout(() => {
-                this.recommendationCards.loadRecommendations(tipoEvento, numAsistentes);
-            }, 1000);
+                this.chatWidget.addMessage(
+                    'Para preparar una propuesta necesito saber cuántos asistentes habrá. ' +
+                    'Dímelo en el chat (por ejemplo, «somos 40») o usa el botón ' +
+                    '🎯 Recomendaciones para rellenar el formulario.',
+                    'bot'
+                );
+            }, 600);
         }
     }
+
+    /**
+     * Propone generar recomendaciones con un boton en el chat, en vez de lanzarlas solo.
+     */
+    ofrecerRecomendaciones(tipoEvento, numAsistentes) {
+        const contenedor = document.getElementById('chat-messages');
+        if (!contenedor) return;
+
+        const etiquetas = {
+            boda: 'boda', 'cumpleaños': 'cumpleaños', corporativo: 'evento corporativo',
+            graduacion: 'graduación', baby_shower: 'baby shower', otro: 'evento'
+        };
+
+        const aviso = document.createElement('div');
+        aviso.className = 'chat-message bot-message';
+        const texto = document.createElement('div');
+        texto.className = 'message-content';
+        texto.textContent =
+            `¿Quieres que prepare una propuesta de menaje para tu ${etiquetas[tipoEvento] || 'evento'} ` +
+            `de ${numAsistentes} asistentes?`;
+
+        const boton = document.createElement('button');
+        boton.className = 'btn btn-secondary';
+        boton.style.marginTop = '8px';
+        boton.textContent = '🎯 Generar propuesta';
+        boton.addEventListener('click', () => {
+            boton.disabled = true;
+            boton.textContent = 'Preparando…';
+            this.recommendationCards.loadRecommendations(tipoEvento, numAsistentes);
+            document.getElementById('recommendations-container')
+                ?.scrollIntoView({ behavior: 'smooth' });
+        });
+
+        texto.appendChild(document.createElement('br'));
+        texto.appendChild(boton);
+        aviso.appendChild(texto);
+        contenedor.appendChild(aviso);
+        contenedor.scrollTop = contenedor.scrollHeight;
+    }
 }
+
+// Numeros escritos en palabras que aparecen de forma realista al describir un evento.
+IAIntegration.NUMEROS_EN_PALABRAS = {
+    'un': 1, 'una': 1, 'dos': 2, 'tres': 3, 'cuatro': 4, 'cinco': 5,
+    'seis': 6, 'siete': 7, 'ocho': 8, 'nueve': 9, 'diez': 10,
+    'once': 11, 'doce': 12, 'trece': 13, 'catorce': 14, 'quince': 15,
+    'dieciseis': 16, 'diecisiete': 17, 'dieciocho': 18, 'diecinueve': 19,
+    'veinte': 20, 'veinticinco': 25, 'treinta': 30, 'cuarenta': 40,
+    'cincuenta': 50, 'sesenta': 60, 'setenta': 70, 'ochenta': 80,
+    'noventa': 90, 'cien': 100, 'ciento': 100, 'doscientos': 200,
+    'trescientos': 300, 'cuatrocientos': 400, 'quinientos': 500, 'mil': 1000
+};
+
+// Sustantivos con los que la gente cuantifica a los asistentes de un evento.
+IAIntegration.SUSTANTIVOS_ASISTENTES =
+    'personas?|asistentes?|invitados?|comensales?|pax|convidados?|gente|puestos?|cubiertos?|sillas?';
 
 document.addEventListener('DOMContentLoaded', () => {
     new IAIntegration();

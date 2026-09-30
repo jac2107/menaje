@@ -23,7 +23,9 @@ async function getCatalogo(req, res) {
     const params = [];
     if (q) { params.push(`%${q}%`); sql += ` AND p.nombre ILIKE $${params.length}`; }
     if (categoria_id) { params.push(categoria_id); sql += ` AND p.categoria_id = $${params.length}`; }
-    sql += ' ORDER BY p.nombre';
+    // LIMIT de seguridad: evita que un catálogo enorme sature la respuesta HTTP y el
+    // navegador del cliente. El prompt de la IA se acota aparte, a 40 productos.
+    sql += ' ORDER BY p.nombre LIMIT 500';
 
     const result = await db.query(sql, params);
     res.json(result.rows);
@@ -38,6 +40,14 @@ async function crearProducto(req, res) {
   const { nombre, categoria_id, descripcion, precio_unidad, stock_inicial, foto_url } = req.body;
   if (!nombre || !categoria_id || !precio_unidad)
     return res.status(400).json({ error: 'Faltan campos obligatorios' });
+
+  // Defensa en profundidad frente a XSS almacenado: estos campos se muestran en las
+  // tarjetas de recomendación del cliente. El frontend ya los escapa, pero rechazarlos
+  // aquí evita que lleguen a la base de datos.
+  if (/[<>]/.test(nombre) || (descripcion && /[<>]/.test(descripcion)))
+    return res.status(400).json({ error: 'El nombre y la descripción no admiten los caracteres < ni >' });
+  if (foto_url && !/^https?:\/\//i.test(foto_url))
+    return res.status(400).json({ error: 'La URL de la foto debe empezar por http:// o https://' });
 
   try {
     const r = await db.query(

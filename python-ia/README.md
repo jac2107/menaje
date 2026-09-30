@@ -76,6 +76,23 @@ El servidor estará en: http://localhost:8000
   }
   ```
 
+## Comportamiento ante fallos de Gemini
+
+No hay proveedor de respaldo. Si la API de Gemini falla (cuota agotada, clave
+inválida, timeout), `POST /chat` responde `502` y el backend Node devuelve al
+cliente un mensaje genérico. El incidente queda registrado en el log del
+microservicio con un id de correlación (`ref:` en la respuesta), que permite
+localizar el detalle técnico en la salida del servicio.
+
+> La variable `GROQ_API_KEY` existía en los `.env` pero no la leía ningún
+> componente: se eliminó para no documentar una capacidad de respaldo que no
+> existe. Registrar los fallos en `conversaciones_ia` con `estado = 'error'`
+> está pendiente (hallazgo BUG-04 de la auditoría, bloque B).
+
 ## Documentación interactiva
 
-http://localhost:8000/docs (Swagger UI)
+Swagger UI (`/docs`), ReDoc (`/redoc`) y `/openapi.json` **solo** se publican
+cuando `IA_ENV=dev` en `python-ia/.env`. Con cualquier otro valor —incluido el
+que viene por defecto, `production`— las tres rutas devuelven `404`.
+
+En desarrollo, con `IA_ENV=dev`: http://127.0.0.1:8000/docs

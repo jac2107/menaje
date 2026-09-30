@@ -61,10 +61,14 @@ router.post('/ia/chat', autenticar, iaRateLimiter, async (req, res) => {
             });
         }
 
-        if (mensaje.length > 6000) {
+        // El mensaje de recomendaciones es un prompt generado que incluye el catalogo
+        // (frontend/assets/js/recommendationcards.js), acotado a 40 productos: ~4k caracteres.
+        // MENSAJE_IA_MAX_CHARS permite subirlo sin tocar codigo si el prompt crece.
+        const MENSAJE_MAX = Number.parseInt(process.env.MENSAJE_IA_MAX_CHARS ?? '', 10) || 8000;
+        if (mensaje.length > MENSAJE_MAX) {
             return res.status(400).json({
                 success: false,
-                error: 'El mensaje es muy largo (máximo 6000 caracteres)'
+                error: `El mensaje es muy largo (máximo ${MENSAJE_MAX} caracteres)`
             });
         }
 
@@ -99,7 +103,7 @@ router.post('/ia/chat', autenticar, iaRateLimiter, async (req, res) => {
  * GET /api/ia/health
  * Verificar que servicio de IA está disponible
  */
-router.get('/ia/health', async (req, res) => {
+router.get('/ia/health', autenticar, async (req, res) => {
     try {
         const iaDisponible = await iaService.verificarIA();
 

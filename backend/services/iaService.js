@@ -2,7 +2,12 @@
 
 const axios = require('axios');
 
-const PYTHON_IA_URL = process.env.PYTHON_IA_URL || 'http://localhost:8000';
+const PYTHON_IA_URL = process.env.PYTHON_IA_URL || 'http://127.0.0.1:8000';
+const IA_SERVICE_TOKEN = process.env.IA_SERVICE_TOKEN;
+
+if (!IA_SERVICE_TOKEN) {
+    throw new Error('Falta la variable de entorno IA_SERVICE_TOKEN (debe coincidir con la de python-ia/.env)');
+}
 
 /**
  * Llamar a FastAPI para obtener respuesta de Gemini
@@ -21,7 +26,8 @@ async function chatConIA(usuarioId, mensaje, historico = []) {
             {
                 timeout: 120000, // 120 segundos timeout (Gemini puede tardar 20-50s)
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'X-IA-Token': IA_SERVICE_TOKEN
                 }
             }
         );
@@ -44,9 +50,19 @@ async function chatConIA(usuarioId, mensaje, historico = []) {
         }
 
         if (error.response) {
+            // Los 4xx del microservicio son de validacion y son seguros de mostrar;
+            // los 5xx pueden contener detalles internos, asi que se registran y se enmascaran.
+            const status = error.response.status;
+            if (status >= 400 && status < 500) {
+                return {
+                    success: false,
+                    error: error.response.data?.detail || 'Solicitud no válida para el servicio de IA'
+                };
+            }
+            console.error(`❌ Error ${status} del servicio IA:`, error.response.data);
             return {
                 success: false,
-                error: error.response.data?.detail || 'Error en servicio de IA'
+                error: 'El asistente no está disponible en este momento. Intenta de nuevo en unos minutos.'
             };
         }
 
@@ -62,7 +78,10 @@ async function chatConIA(usuarioId, mensaje, historico = []) {
  */
 async function verificarIA() {
     try {
-        const response = await axios.get(`${PYTHON_IA_URL}/health`, { timeout: 5000 });
+        const response = await axios.get(`${PYTHON_IA_URL}/health`, {
+            timeout: 5000,
+            headers: { 'X-IA-Token': IA_SERVICE_TOKEN }
+        });
         return response.data.status === 'ok';
     } catch (error) {
         console.warn('⚠️  Servicio IA no disponible');

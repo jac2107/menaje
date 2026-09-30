@@ -72,21 +72,29 @@ con un usuario `cliente` existente en la base de datos (ver `database/seed_demo.
 
 ## Configuración (variables de entorno)
 
-`backend/.env` y `python-ia/.env` deben tener `API_GEMINI_KEY` con una API
-key válida de Google AI Studio, y `GEMINI_MODEL` con un modelo vigente
-(ver "Nota sobre el modelo de Gemini" más abajo). `RATE_LIMIT_IA` en
-`backend/.env` controla las solicitudes por minuto permitidas a
-`/api/ia/chat` (verificado en 5/min, ver sección de Testing).
+`python-ia/.env` debe tener `API_GEMINI_KEY` con una API key válida de Google
+AI Studio y `GEMINI_MODEL` con un modelo vigente (ver "Nota sobre el modelo de
+Gemini" más abajo). **Esas dos variables ya no van en `backend/.env`**: Node no
+llama a Gemini directamente, solo al microservicio, así que duplicar la clave
+allí solo ampliaba su exposición (hallazgo SEC-08 de la auditoría).
+
+`backend/.env` necesita, para la parte de IA:
+
+- `PYTHON_IA_URL` — URL del microservicio FastAPI.
+- `RATE_LIMIT_IA` — solicitudes por minuto permitidas a `/api/ia/chat`
+  (verificado en 5/min, ver sección de Testing).
+- `IA_SERVICE_TOKEN` — secreto compartido con `python-ia/.env`. **Los dos
+  archivos deben tener exactamente el mismo valor**, o `/api/ia/chat`
+  devolverá siempre error porque el microservicio rechazará la petición
+  con `401`.
 
 ## Nota sobre el modelo de Gemini
 
-`backend/.env` todavía tiene `GEMINI_MODEL=gemini-1.5-flash`, pero ese
-valor no lo usa ningún proceso: el que realmente llama a Gemini es
-`python-ia/main.py`, que lee su propio `python-ia/.env`. Ahí el modelo
-configurado y verificado como funcional en esta fase es
+El proceso que llama a Gemini es `python-ia/main.py`, que lee su propio
+`python-ia/.env`. Ahí el modelo configurado y verificado como funcional es
 `gemini-3.6-flash` (confirmado en `GET /health` y en las respuestas reales
-de chat). Se recomienda actualizar `backend/.env` para que no quede
-desactualizado, aunque hoy no afecta el funcionamiento.
+de chat). El valor `gemini-1.5-flash` que había quedado en `backend/.env` no
+lo leía ningún proceso y se eliminó.
 
 ## Testing realizado (FASE 4)
 

@@ -14,7 +14,10 @@ class ChatWidget {
         this.userId = this.getUserId(); // Obtener de JWT
         this.conversationHistory = [];
         this.isLoading = false;
-        this.apiUrl = 'http://localhost:3000/api/ia/chat'; // Ruta Node.js
+        // Ruta relativa: el backend Node sirve el frontend y la API desde el mismo
+        // origen (backend/server.js:35 y :38), asi que una URL absoluta con host y
+        // puerto fijos rompe el chat en cuanto se sirve desde otra IP, puerto o dominio.
+        this.apiUrl = '/api/ia/chat';
         
         this.init();
     }
@@ -25,6 +28,7 @@ class ChatWidget {
     init() {
         this.createChatUI();
         this.attachEventListeners();
+        this.restaurarHistorial();
     }
 
     /**
@@ -134,18 +138,30 @@ class ChatWidget {
             // Enviar a Backend Node.js que a su vez llamará a FastAPI
             const response = await fetch(this.apiUrl, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.getJWT()}`
-                },
+                headers: window.IAAuth.authHeaders({ 'Content-Type': 'application/json' }),
+                // No se envia usuario_id: el backend lo toma del JWT verificado
+                // (backend/routes/index.js) e ignora cualquier valor del cuerpo.
                 body: JSON.stringify({
-                    usuario_id: this.userId,
                     mensaje: mensaje,
                     historico: this.conversationHistory.slice(-5) // Últimos 5 mensajes
                 })
             });
 
             const body = await response.json().catch(() => ({}));
+
+            if (response.status === 429) {
+                // Limite de peticiones: no es un fallo del sistema, y el tiempo real de
+                // espera lo dice Retry-After (la ventana es deslizante, no fija de 60s).
+                const espera = parseInt(response.headers.get('Retry-After') || '', 10);
+                const cuando = Number.isFinite(espera) && espera > 0
+                    ? `${espera} segundo${espera === 1 ? '' : 's'}`
+                    : 'unos segundos';
+                this.addMessage(
+                    `⏳ Estoy recibiendo muchas preguntas a la vez. Vuelve a escribirme en ${cuando}.`,
+                    'bot'
+                );
+                return;
+            }
 
             if (!response.ok || body.success === false) {
                 throw new Error(body.error || `Error ${response.status}: ${response.statusText}`);
@@ -166,6 +182,7 @@ class ChatWidget {
                 ia: data.respuesta,
                 timestamp: data.timestamp
             });
+            this.persistirHistorial();
 
         } catch (error) {
             console.error('Error en chat:', error);
@@ -204,11 +221,6 @@ class ChatWidget {
         
         // Scroll al último mensaje
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-
-        // Reproducir sonido de notificación (opcional)
-        if (tipo === 'bot-message' || tipo === 'bot-error') {
-            this.playNotificationSound();
-        }
     }
 
     /**
@@ -222,37 +234,33 @@ class ChatWidget {
     }
 
     /**
-     * Obtener JWT del localStorage
+     * Sesion: delegada en window.IAAuth (assets/js/ia-auth.js), compartida con
+     * RecommendationCards. Antes estaba duplicada en los dos componentes, con
+     * manejos del error distintos. Se conservan los envoltorios para no tocar los
+     * puntos de uso.
      */
     getJWT() {
-        return localStorage.getItem('token') || '';
+        return window.IAAuth.getJWT();
     }
 
-    /**
-     * Obtener ID del usuario del JWT o localStorage
-     */
     getUserId() {
-        const token = this.getJWT();
-        if (!token) return null;
-
-        try {
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            return payload.id || payload.usuario_id;
-        } catch {
-            return localStorage.getItem('usuario_id');
-        }
+        return window.IAAuth.getUserId();
     }
 
     /**
-     * Limpiar HTML (XSS prevention)
+     * Escapa el HTML del contenido (via textContent) y luego aplica un subconjunto
+     * de Markdown. El orden importa: ** y __ (negrita) antes de * y _ (cursiva),
+     * para que los delimitadores dobles no los consuma la regla simple.
      */
     sanitizeHTML(html) {
         const div = document.createElement('div');
         div.textContent = html;
         return div.innerHTML
             .replace(/\n/g, '<br>')
-            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-            .replace(/__(.*?)__/g, '<em>$1</em>');
+            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+            .replace(/__(.+?)__/g, '<strong>$1</strong>')
+            .replace(/(^|[\s(])\*(?!\s)(.+?)\*/g, '$1<em>$2</em>')
+            .replace(/(^|[\s(])_(?!\s)(.+?)_/g, '$1<em>$2</em>');
     }
 
     /**
@@ -277,15 +285,6 @@ class ChatWidget {
     }
 
     /**
-     * Reproducir sonido de notificación (opcional)
-     */
-    playNotificationSound() {
-        // Descomentar si quieres agregar sonido
-        // const audio = new Audio('/sounds/notification.mp3');
-        // audio.play().catch(e => console.log('Audio play prevented:', e));
-    }
-
-    /**
      * Alternar visibilidad del widget
      */
     toggle() {
@@ -298,14 +297,67 @@ class ChatWidget {
     }
 
     /**
+     * Clave de almacenamiento por usuario: en un equipo compartido, dos sesiones
+     * distintas no deben ver la conversacion de la otra.
+     */
+    storageKey() {
+        return `menaje:chat:${this.userId ?? 'anon'}`;
+    }
+
+    /**
+     * Guarda el historial en sessionStorage: el frontend son paginas independientes,
+     * asi que cualquier navegacion perdia la conversacion Y el contexto que se envia
+     * al modelo. sessionStorage sobrevive a la navegacion y se limpia al cerrar la
+     * pestana. Toda lectura/escritura va en try/catch: puede lanzar en modo privado.
+     */
+    persistirHistorial() {
+        try {
+            sessionStorage.setItem(
+                this.storageKey(),
+                JSON.stringify(this.conversationHistory.slice(-20))
+            );
+        } catch { /* sin persistencia: el chat sigue funcionando en memoria */ }
+    }
+
+    /**
+     * ORDEN DE INICIALIZACION - NO REORDENAR: este metodo llama a addMessage(..., 'user'),
+     * y ia-integration.js envuelve addMessage para disparar recomendaciones ante los
+     * mensajes del usuario. Debe ejecutarse ANTES de que se instale ese envoltorio, o
+     * restaurar una conversacion que contenga "recomienda ... 50 personas" lanzaria una
+     * peticion no solicitada. Hoy se cumple, y no solo por temporizacion: init() corre
+     * DENTRO del constructor, y window.chatWidget solo se asigna cuando el constructor
+     * ya ha vuelto; setupIntegration() no hace nada hasta que window.chatWidget existe
+     * (ia-integration.js, condicion del setInterval). Es decir, el envoltorio no puede
+     * instalarse antes de que este metodo haya terminado. Si alguien mueve la llamada
+     * fuera del constructor, o asigna window.chatWidget antes de restaurar, esa garantia
+     * desaparece y vuelve el disparo no solicitado.
+     */
+    restaurarHistorial() {
+        let guardado = [];
+        try {
+            guardado = JSON.parse(sessionStorage.getItem(this.storageKey()) || '[]');
+        } catch { return; }
+        if (!Array.isArray(guardado) || !guardado.length) return;
+
+        this.conversationHistory = guardado;
+        for (const turno of guardado) {
+            if (turno.usuario) this.addMessage(turno.usuario, 'user');
+            if (turno.ia) this.addMessage(turno.ia, 'bot', { timestamp: turno.timestamp });
+        }
+    }
+
+    /**
      * Limpiar conversación
      */
     clearChat() {
         this.messagesContainer.innerHTML = '';
         this.conversationHistory = [];
+        try {
+            sessionStorage.removeItem(this.storageKey());
+        } catch { /* nada que limpiar */ }
         this.addMessage(
             '¡Conversación limpiada! Estoy listo para ayudarte de nuevo. 🎉',
-            'bot-message'
+            'bot'
         );
     }
 
