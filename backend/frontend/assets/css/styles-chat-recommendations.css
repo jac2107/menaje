@@ -170,7 +170,12 @@
 /* ============================================================
    Tarjetas de Recomendación
    ============================================================ */
-.recommendations-section { padding: 4px; }
+.recommendations-section {
+  padding: 4px;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+}
 .recommendations-header {
   display: flex;
   flex-wrap: wrap;
@@ -179,7 +184,14 @@
   align-items: center;
   margin-bottom: 16px;
 }
-.recommendations-filters { display: flex; gap: 8px; flex-wrap: wrap; }
+.recommendations-header h2 {
+  min-width: 0;
+  margin: 0;
+  font-size: 1.15rem;
+  line-height: 1.35;
+  overflow-wrap: break-word;
+}
+.recommendations-filters { display: flex; gap: 8px; flex-wrap: wrap; min-width: 0; }
 .filter-btn {
   background: var(--surface, rgba(255,255,255,.05));
   border: 1px solid var(--border, rgba(255,255,255,.1));
@@ -197,7 +209,7 @@
 
 .recommendations-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
   gap: 16px;
   margin-bottom: 20px;
 }
@@ -367,5 +379,6 @@
   }
   .chat-launcher { right: 16px; bottom: 16px; }
   .recommendations-grid { grid-template-columns: 1fr; }
+  .recommendations-section { padding: 0; }
   .rec-modal-content { padding: 18px; }
 }

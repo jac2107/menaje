@@ -31,12 +31,14 @@
       <div class="form-group"><label>Correo electrónico</label><input type="email" class="form-control" id="cuenta-correo"/></div>
       <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="guardarCuenta()">Guardar cambios</button>
     </div>
+
+    <!-- Recomendaciones IA (OPCIÓN 1 - IA Gemini): dentro de .main-content para respetar el layout -->
+    <div id="recommendations-container"></div>
   </main>
 </div>
 
-<!-- Chat Widget + Recommendations (OPCIÓN 1 - IA Gemini) -->
+<!-- Chat Widget (OPCIÓN 1 - IA Gemini) -->
 <div id="chat-container"></div>
-<div id="recommendations-container"></div>
 <script src="/assets/js/ia-auth.js"></script>
 <script src="/assets/js/chatwidget.js"></script>
 <script src="/assets/js/recommendationcards.js"></script>

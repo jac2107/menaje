@@ -63,6 +63,9 @@
       <p style="color:var(--text-muted);margin-bottom:16px">Combos listos con varios productos incluidos, pensados para 10 personas. Elige la cantidad según el tamaño de tu evento.</p>
       <div id="paquetes-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;"></div>
     </div>
+
+    <!-- Recomendaciones IA (OPCIÓN 1 - IA Gemini): dentro de .main-content para respetar el layout -->
+    <div id="recommendations-container"></div>
   </main>
 </div>
 
@@ -107,9 +110,8 @@
   </div>
 </div>
 
-<!-- Chat Widget + Recommendations (OPCIÓN 1 - IA Gemini) -->
+<!-- Chat Widget (OPCIÓN 1 - IA Gemini) -->
 <div id="chat-container"></div>
-<div id="recommendations-container"></div>
 <script src="/assets/js/ia-auth.js"></script>
 <script src="/assets/js/chatwidget.js"></script>
 <script src="/assets/js/recommendationcards.js"></script>
