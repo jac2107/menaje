@@ -145,6 +145,17 @@ class IAIntegration {
     }
 
     /**
+     * Quita tildes y ñ para poder comparar texto escrito de cualquiera de las dos
+     * formas ("cumpleaños"/"cumpleanos", "graduación"/"graduacion").
+     */
+    static normalizar(texto) {
+        return texto
+            .normalize('NFD')
+            .replace(/[̀-ͯ]/g, '')
+            .toLowerCase();
+    }
+
+    /**
      * Extrae el numero de asistentes del mensaje. Acepta cifras de 1 a 4 digitos
      * ("para 8 personas" fallaba con el patron anterior, que exigia 2 digitos),
      * numeros escritos en palabras ("cincuenta invitados") y un numero suelto
@@ -152,10 +163,7 @@ class IAIntegration {
      * Devuelve null si no hay una cantidad plausible (1-1000, el rango del formulario).
      */
     extraerNumeroAsistentes(mensaje) {
-        const texto = mensaje
-            .normalize('NFD')
-            .replace(/[̀-ͯ]/g, '')   // "cumpleanos", "dieciseis"
-            .toLowerCase();
+        const texto = IAIntegration.normalizar(mensaje);   // "cumpleanos", "dieciseis"
 
         const sustantivos = IAIntegration.SUSTANTIVOS_ASISTENTES;
 
@@ -186,19 +194,26 @@ class IAIntegration {
     }
 
     extractAndRecommend(mensaje) {
-        const mensajeLower = mensaje.toLowerCase();
+        // Se compara sin tildes ni ñ: "cumpleanos", "graduacion" o "bebe" se escriben
+        // de las dos formas, y escritas sin tilde caian en 'otro' por ese detalle.
+        const mensajeNormalizado = IAIntegration.normalizar(mensaje);
 
+        // Las claves son los valores que espera el resto del sistema (las <option> del
+        // formulario); las palabras que se buscan van siempre sin tilde.
         const tipoEventoMap = {
             'boda': ['boda', 'matrimonio', 'casamiento'],
-            'cumpleaños': ['cumpleaños', 'cumple', 'aniversario'],
-            'corporativo': ['corporativo', 'empresa', 'reunión de trabajo', 'conference'],
-            'graduacion': ['graduación', 'graduacion'],
-            'baby_shower': ['baby shower', 'baby', 'ducha de bebé']
+            'cumpleaños': ['cumpleanos', 'cumple', 'aniversario'],
+            'corporativo': ['corporativo', 'empresa', 'reunion de trabajo', 'conference'],
+            'graduacion': ['graduacion'],
+            'baby_shower': ['baby shower', 'baby', 'ducha de bebe']
         };
 
+        // 'otro' NO es un fallo y no debe cortar la funcion: un tipo de evento sin
+        // reconocer sigue al reparto de abajo (boton o pregunta), y es un valor valido
+        // aguas abajo (recommendationcards.js lo interpola en el prompt, no lo valida).
         let tipoEvento = 'otro';
         for (const [tipo, palabras] of Object.entries(tipoEventoMap)) {
-            if (palabras.some(p => mensajeLower.includes(p))) {
+            if (palabras.some(p => mensajeNormalizado.includes(p))) {
                 tipoEvento = tipo;
                 break;
             }
@@ -231,7 +246,13 @@ class IAIntegration {
      */
     ofrecerRecomendaciones(tipoEvento, numAsistentes) {
         const contenedor = document.getElementById('chat-messages');
-        if (!contenedor) return;
+        if (!contenedor) {
+            // Unico camino por el que una peticion detectada no produce respuesta. No
+            // hay plan B: #chat-messages es tambien el contenedor de addMessage
+            // (chatwidget.js, createChatUI), asi que si falta, el chat entero no pinta.
+            console.warn('IA Integration: no existe #chat-messages; no se puede ofrecer la propuesta');
+            return;
+        }
 
         const etiquetas = {
             boda: 'boda', 'cumpleaños': 'cumpleaños', corporativo: 'evento corporativo',
