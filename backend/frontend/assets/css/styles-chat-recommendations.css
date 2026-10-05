@@ -336,6 +336,12 @@
 }
 .rec-modal select:focus,
 .rec-modal input:focus { border-color: var(--accent, #36ada3); }
+/* El popup nativo del <select> hereda el fondo translucido y dejaba el texto
+   blanco sobre blanco: forzamos fondo claro y texto oscuro en las <option>. */
+.rec-modal select option {
+  background-color: #ffffff;
+  color: #000000;
+}
 .rec-modal .form-actions {
   display: flex;
   gap: 10px;
