@@ -11,3 +11,7 @@ python-ia/__pycache__/
 # Los .env.example SI se versionan (la regla *.env de arriba no los
 # cubre, porque no terminan en .env, pero conviene ser explicito).
 !*.env.example
+
+# python-ml
+python-ml/venv/
+python-ml/__pycache__/
