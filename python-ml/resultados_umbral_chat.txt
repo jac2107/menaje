@@ -1,0 +1,48 @@
+== Mejor similitud por consulta (y producto)
+[dentro] ¿Tienen sillas para una fiesta infantil?
+    top1 0.835 Silla de Hierro Negra | esperado a 0.835
+[dentro] Necesito manteles para mi boda
+    top1 0.855 Mantel Rectangular Blanco Jacquard | esperado a 0.855
+[dentro] Busco copas para brindar
+    top1 0.850 Copa de Vino Tinto Tradicional | esperado a 0.850
+[dentro] ¿Tienen mesas redondas?
+    top1 0.881 Mesa Redonda 1.2m Diámetro | esperado a 0.881
+[dentro] Necesito cubiertos para 50 personas
+    top1 0.820 Cubierto Desechable Oro (set) | esperado a 0.820
+[dentro] Busco platos desechables para un cumpleaños
+    top1 0.885 Plato Desechable Dorado 10" | esperado a 0.885
+[dentro] ¿Tienen vasos para tequila?
+    top1 0.885 Vaso Shot Tequilero | esperado a 0.885
+[dentro] Necesito algo para enfriar las bebidas con hielo
+    top1 0.883 Cubeta de Hielo Acero Inoxidable | esperado a 0.883
+[dentro] ¿Tienen jarras para el agua?
+    top1 0.869 Jarra de Cristal 1.5L | esperado a 0.869
+[dentro] Busco centros de mesa con flores
+    top1 0.865 Centro de Mesa Florero Cristal | esperado a 0.865
+[dentro] ¿Tienen servilleteros?
+    top1 0.813 Servilletero de Metal | esperado a 0.813
+[dentro] Necesito vasos para whisky
+    top1 0.886 Vaso Old Fashioned Whisky | esperado a 0.886
+[dentro] Busco platos para servir postre
+    top1 0.879 Plato Postre Cuadrado Moderno | esperado a 0.879
+[dentro] ¿Tienen camino de mesa rústico?
+    top1 0.904 Camino de Mesa Yute Rústico | esperado a 0.904
+[dentro] Necesito copas de vino tinto
+    top1 0.897 Copa de Vino Tinto Tradicional | esperado a 0.897
+[FUERA] ¿Tienen algo para mantener la comida caliente en un buffet?
+    top1 0.816 Cubeta de Hielo Acero Inoxidable | esperado a -
+[FUERA] Necesito un proyector y una pantalla para la presentación
+    top1 0.811 Tenedor Dorado Premium | esperado a -
+[FUERA] ¿Alquilan carpas o toldos para el jardín?
+    top1 0.785 Plato de Sitio Vidrio Bordes Dorados | esperado a -
+[FUERA] Algo para mantener la comida caliente en un buffet
+    top1 0.831 Plato Desechable Blanco 10" | esperado a -
+[FUERA] Necesito un dj y sonido para la fiesta
+    top1 0.819 Mesa Redonda 1.2m Diámetro | esperado a -
+
+== Resumen por umbral (15 consultas dentro del catalogo, 5 fuera)
+umbral | esperado encontrado | irrelevantes colados (dentro) | fuera con resultados | productos totales por consulta (media)
+0.78   | 15/15 | 46 | 5/5 | 4.8
+0.80   | 15/15 | 35 | 4/5 | 4.0
+0.82   | 13/15 | 32 | 1/5 | 3.0
+0.85   | 12/15 | 8 | 0/5 | 1.1
