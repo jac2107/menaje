@@ -8,6 +8,7 @@ import logging
 import os
 import secrets
 import sys
+import threading
 import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -178,6 +179,26 @@ class ChatResponse(BaseModel):
     tokens_usados: int
 
 
+class BusquedaSemanticaRequest(BaseModel):
+    descripcion: str = Field(min_length=2, max_length=500)
+    limite: int = Field(default=5, ge=1, le=20)
+
+
+class ProductoSimilar(BaseModel):
+    id: int
+    nombre: str
+    categoria: str
+    descripcion: Optional[str] = None
+    precio_unidad: float
+    stock_disponible: int
+    foto_url: Optional[str] = None
+    similitud: float
+
+
+class BusquedaSemanticaResponse(BaseModel):
+    resultados: List[ProductoSimilar]
+
+
 # ============================================================
 # FUNCIONES AUXILIARES
 # ============================================================
@@ -203,6 +224,30 @@ try:
     logger.info("Pool de PostgreSQL creado (%d-%d conexiones)", DB_POOL_MIN, DB_POOL_MAX)
 except psycopg2.Error as error:
     raise RuntimeError(f"No se pudo crear el pool de PostgreSQL: {error}") from error
+
+
+# Modelo de embeddings (OPCION 2). Se carga la primera vez que se usa para no
+# retrasar el arranque ni gastar memoria si nadie hace busquedas semanticas.
+# Debe ser el mismo modelo con el que python-ml/cargar_embeddings.py generó los vectores.
+EMBEDDING_MODEL = os.getenv(
+    "EMBEDDING_MODEL", "intfloat/multilingual-e5-small"
+)
+# Los modelos e5 exigen prefijo "query: " en la consulta (y "passage: " en los documentos).
+PREFIJO_CONSULTA = "query: " if "e5" in EMBEDDING_MODEL else ""
+_modelo_embeddings = None
+_modelo_lock = threading.Lock()
+
+
+def obtener_modelo_embeddings():
+    global _modelo_embeddings
+    if _modelo_embeddings is None:
+        with _modelo_lock:
+            if _modelo_embeddings is None:
+                from sentence_transformers import SentenceTransformer
+
+                _modelo_embeddings = SentenceTransformer(EMBEDDING_MODEL)
+                logger.info("Modelo de embeddings cargado: %s", EMBEDDING_MODEL)
+    return _modelo_embeddings
 
 
 @contextmanager
@@ -390,6 +435,18 @@ def verificar_token_servicio(
 # CICLO DE VIDA
 # ============================================================
 
+@app.on_event("startup")
+def precalentar_modelo_embeddings() -> None:
+    """Carga el modelo de embeddings en segundo plano para que la primera busqueda no pague la carga."""
+    def _cargar() -> None:
+        try:
+            obtener_modelo_embeddings()
+        except Exception as error:
+            logger.warning("No se pudo precargar el modelo de embeddings: %r", error)
+
+    threading.Thread(target=_cargar, daemon=True).start()
+
+
 @app.on_event("shutdown")
 def cerrar_pool() -> None:
     """
@@ -502,6 +559,63 @@ def chat(request: ChatRequest) -> ChatResponse:
 # MAIN
 # ============================================================
 
+@app.post(
+    "/busqueda-semantica",
+    response_model=BusquedaSemanticaResponse,
+    dependencies=[Depends(verificar_token_servicio)],
+)
+def busqueda_semantica(request: BusquedaSemanticaRequest) -> BusquedaSemanticaResponse:
+    """
+    Devuelve los productos activos con stock disponible mas cercanos (similitud de
+    coseno sobre productos.embedding) a una descripcion libre, de mayor a menor.
+    Stock disponible = stock_total - stock_baja, igual que el contexto del chat.
+    """
+    descripcion = request.descripcion.strip()
+    if len(descripcion) < 2:
+        raise HTTPException(status_code=400, detail="La descripción es demasiado corta")
+
+    try:
+        vector = obtener_modelo_embeddings().encode(
+            PREFIJO_CONSULTA + descripcion, normalize_embeddings=True
+        )
+    except Exception as error:
+        logger.error("Error generando embedding: %r", error)
+        raise HTTPException(status_code=503, detail="La búsqueda semántica no está disponible")
+    # Literal pgvector '[x,y,...]': evita depender del adaptador pgvector para psycopg2.
+    literal = "[" + ",".join(f"{x:.7f}" for x in vector) + "]"
+
+    try:
+        with obtener_conexion() as conn, conn.cursor(
+            cursor_factory=psycopg2.extras.RealDictCursor
+        ) as cur:
+            cur.execute(
+                """
+                SELECT p.id, p.nombre, c.nombre AS categoria, p.descripcion,
+                       p.precio_unidad::float AS precio_unidad,
+                       (p.stock_total - p.stock_baja) AS stock_disponible,
+                       p.foto_url,
+                       (1 - (p.embedding <=> %s::vector))::float AS similitud
+                FROM productos p
+                JOIN categorias c ON c.id = p.categoria_id
+                WHERE p.activo = TRUE
+                  AND (p.stock_total - p.stock_baja) > 0
+                  AND p.embedding IS NOT NULL
+                ORDER BY p.embedding <=> %s::vector
+                LIMIT %s
+                """,
+                (literal, literal, request.limite),
+            )
+            filas = [dict(f) for f in cur.fetchall()]
+    except psycopg2.Error as error:
+        logger.error("Error en busqueda semantica: %r", error)
+        raise HTTPException(
+            status_code=503,
+            detail="El asistente no puede consultar el catalogo en este momento",
+        )
+
+    return BusquedaSemanticaResponse(resultados=[ProductoSimilar(**f) for f in filas])
+
+
 if __name__ == "__main__":
     print("=" * 60)
     print("🚀 INICIANDO SERVIDOR FASTAPI - Menaje IA Service")
@@ -514,6 +628,6 @@ if __name__ == "__main__":
     else:
         print("📚 Documentación (Swagger): deshabilitada (IA_ENV != dev)")
     print(f"❤️  Health check: http://{IA_HOST}:{IA_PORT}/health")
-    print("🔒 POST /chat requiere la cabecera X-IA-Token")
+    print("🔒 POST /chat y /busqueda-semantica requieren la cabecera X-IA-Token")
     print("=" * 60)
     uvicorn.run(app, host=IA_HOST, port=IA_PORT)
