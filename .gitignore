@@ -15,3 +15,9 @@ python-ia/__pycache__/
 # python-ml
 python-ml/venv/
 python-ml/__pycache__/
+
+# python-ml: pronostico de demanda (Fase 3). El CSV sintetico (~125 KB) SI se
+# versiona; el almacen local de MLflow se regenera con entrenar.py.
+python-ml/mlruns/
+python-ml/mlflow.db
+python-ml/mlartifacts/
