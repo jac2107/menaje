@@ -31,7 +31,7 @@ import psycopg2.pool
 import uvicorn
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 import pronostico
 import tareas
@@ -169,6 +169,23 @@ app = FastAPI(
 
 
 # ============================================================
+# DOCUMENTACION OPENAPI (/docs, solo con IA_ENV=dev)
+# ============================================================
+
+def _err(descripcion: str, ejemplo: str) -> Dict[str, Any]:
+    return {"description": descripcion, "content": {"application/json": {"example": {"detail": ejemplo}}}}
+
+
+R401 = _err("Falta la cabecera `X-IA-Token` o no coincide con IA_SERVICE_TOKEN.", "No autorizado")
+R403 = _err(
+    "Rol insuficiente. FastAPI no emite 403: lo aplica el backend Node (JWT con rol `dueno`) "
+    "antes de llegar aqui; se documenta para que el contrato completo quede en un solo lugar.",
+    "Acceso denegado para tu rol")
+R503_BD = _err("La base de datos o el modelo de embeddings no estan disponibles.",
+               "La busqueda semantica no esta disponible")
+
+
+# ============================================================
 # MODELOS PYDANTIC
 # ============================================================
 
@@ -185,8 +202,12 @@ class ChatResponse(BaseModel):
 
 
 class BusquedaSemanticaRequest(BaseModel):
-    descripcion: str = Field(min_length=2, max_length=500)
-    limite: int = Field(default=5, ge=1, le=20)
+    descripcion: str = Field(
+        min_length=2, max_length=500,
+        description="Descripcion libre de lo que se busca, en lenguaje natural.")
+    limite: int = Field(default=5, ge=1, le=20, description="Maximo de productos a devolver (1-20).")
+    model_config = ConfigDict(json_schema_extra={"examples": [
+        {"descripcion": "copas para brindar en una boda", "limite": 3}]})
 
 
 class ProductoSimilar(BaseModel):
@@ -201,11 +222,19 @@ class ProductoSimilar(BaseModel):
 
 
 class BusquedaSemanticaResponse(BaseModel):
-    resultados: List[ProductoSimilar]
+    resultados: List[ProductoSimilar] = Field(
+        description="De mas a menos similar. Lista vacia si ningun producto supera el umbral.")
+    model_config = ConfigDict(json_schema_extra={"examples": [{"resultados": [{
+        "id": 12, "nombre": "Copa de Cristal 300ml", "categoria": "Copa",
+        "descripcion": "Copa de cristal para vino y brindis", "precio_unidad": 1.5,
+        "stock_disponible": 80, "foto_url": None, "similitud": 0.91}]}]})
 
 
 class TareaRequest(BaseModel):
-    tipo: Literal["reentrenar_pronostico", "regenerar_embeddings"]
+    tipo: Literal["reentrenar_pronostico", "regenerar_embeddings"] = Field(
+        description="reentrenar_pronostico: vuelve a entrenar la red de demanda (datos sinteticos). "
+                    "regenerar_embeddings: recalcula el vector de cada producto activo.")
+    model_config = ConfigDict(json_schema_extra={"examples": [{"tipo": "reentrenar_pronostico"}]})
 
 
 class TareaResponse(BaseModel):
@@ -215,7 +244,11 @@ class TareaResponse(BaseModel):
     creada: str
     inicio: str = ""
     fin: str = ""
-    detalle: str = ""
+    detalle: str = Field(default="", description="Ultimas lineas de salida del proceso (util si estado=error).")
+    model_config = ConfigDict(json_schema_extra={"examples": [{
+        "id": "3f0c1d5a9b7e4c2f8a6d1e0b5c4a3f21", "tipo": "reentrenar_pronostico",
+        "estado": "en_curso", "creada": "2026-11-12T16:05:01+00:00",
+        "inicio": "2026-11-12T16:05:02+00:00", "fin": "", "detalle": ""}]})
 
 
 class ComponenteEstado(BaseModel):
@@ -229,6 +262,14 @@ class EstadoResponse(BaseModel):
     modo_degradado: bool
     componentes: Dict[str, ComponenteEstado]
     datos_pronostico: str = "SINTETICOS"
+    model_config = ConfigDict(json_schema_extra={"examples": [{
+        "estado_general": "degradado", "modo_degradado": True, "datos_pronostico": "SINTETICOS",
+        "componentes": {
+            "pronostico": {"estado": "degradado", "detalle": "el modelo no carga; se sirve el promedio historico",
+                           "latencia_ms": 1},
+            "busqueda_vectorial": {"estado": "ok", "detalle": "40 productos con embedding", "latencia_ms": 6},
+            "redis": {"estado": "ok", "detalle": "PING correcto", "latencia_ms": 1},
+            "gemini": {"estado": "ok", "detalle": "modelo disponible", "latencia_ms": 240}}}]})
 
 
 class PronosticoRequest(BaseModel):
@@ -236,8 +277,10 @@ class PronosticoRequest(BaseModel):
         "boda", "quinceanos", "bautizo", "cumpleanos",
         "graduacion", "corporativo", "baby_shower",
     ]
-    mes: int = Field(ge=1, le=12)
-    asistentes: int = Field(ge=1, le=5000)
+    mes: int = Field(ge=1, le=12, description="Mes del evento (1 = enero ... 12 = diciembre).")
+    asistentes: int = Field(ge=1, le=5000, description="Numero de asistentes previstos.")
+    model_config = ConfigDict(json_schema_extra={"examples": [
+        {"tipo_evento": "boda", "mes": 12, "asistentes": 150}]})
 
 
 class DemandaCategoria(BaseModel):
@@ -250,9 +293,13 @@ class DemandaCategoria(BaseModel):
 
 class PronosticoResponse(BaseModel):
     modo: Literal["modelo", "degradado"]
-    aviso: Optional[str] = None
+    aviso: Optional[str] = Field(default=None, description="Presente en modo degradado o si se extrapola.")
     datos_entrenamiento: str = "SINTETICOS"
     demanda: List[DemandaCategoria]
+    model_config = ConfigDict(json_schema_extra={"examples": [{
+        "modo": "modelo", "aviso": None, "datos_entrenamiento": "SINTETICOS",
+        "demanda": [{"categoria": "Copa", "cantidad_estimada": 459, "error_validacion_mae": 11.46},
+                    {"categoria": "Mantel", "cantidad_estimada": 38, "error_validacion_mae": 1.03}]}]})
 
 
 # ============================================================
@@ -781,6 +828,18 @@ def chat(request: ChatRequest) -> ChatResponse:
     "/busqueda-semantica",
     response_model=BusquedaSemanticaResponse,
     dependencies=[Depends(verificar_token_servicio)],
+    tags=["Opcion 2"],
+    summary="Busqueda semantica de productos",
+    description=(
+        "Encuentra los productos activos con stock que mejor encajan con una descripcion en "
+        "lenguaje natural (similitud de coseno entre embeddings, modelo multilingual-e5-small). "
+        "Descarta los que no llegan al umbral `BUSQUEDA_UMBRAL_SIMILITUD`, asi que puede devolver "
+        "una lista vacia. **Requiere** la cabecera `X-IA-Token`."
+    ),
+    responses={
+        400: _err("La descripcion es demasiado corta tras quitar espacios.", "La descripción es demasiado corta"),
+        401: R401, 403: R403, 503: R503_BD,
+    },
 )
 def busqueda_semantica(request: BusquedaSemanticaRequest) -> BusquedaSemanticaResponse:
     """
@@ -837,6 +896,19 @@ def obtener_modelo_pronostico():
     "/pronostico-demanda",
     response_model=PronosticoResponse,
     dependencies=[Depends(verificar_token_servicio)],
+    tags=["Opcion 2"],
+    summary="Pronostico de demanda por categoria",
+    description=(
+        "Cantidad estimada de cada categoria de producto para un evento (tipo, mes, asistentes). "
+        "La red se entreno con **datos sinteticos**, no con alquileres reales. `error_validacion_mae` "
+        "es el error medio (en unidades) de esa categoria en validacion: indica cuanta confianza dar. "
+        "Si el modelo no carga responde en `modo: degradado` con el promedio historico por categoria "
+        "y mes (sin distinguir evento ni asistentes). **Requiere** `X-IA-Token`."
+    ),
+    responses={
+        401: R401, 403: R403,
+        503: _err("Ni el modelo ni el promedio historico estan disponibles.", "El pronostico no esta disponible"),
+    },
 )
 def pronostico_demanda(request: PronosticoRequest) -> PronosticoResponse:
     """
@@ -901,6 +973,19 @@ def _redis_o_503():
 @app.post(
     "/tareas", response_model=TareaResponse, status_code=202,
     dependencies=[Depends(verificar_token_servicio)],
+    tags=["Opcion 2"],
+    summary="Lanzar una tarea en segundo plano",
+    description=(
+        "Encola la tarea en Redis y responde enseguida con `202` y su id; un worker "
+        "(`worker_tareas.py`) la ejecuta. Consultar el avance con `GET /tareas/{id}`. "
+        "Solo puede haber una tarea pendiente o en curso por tipo. **Requiere** `X-IA-Token`."
+    ),
+    responses={
+        401: R401, 403: R403,
+        409: _err("Ya hay una tarea de ese tipo pendiente o en curso.",
+                  "Ya hay una tarea 'reentrenar_pronostico' pendiente o en curso (id 3f0c...)"),
+        503: _err("Redis no responde.", "La cola de tareas no esta disponible (Redis)"),
+    },
 )
 def crear_tarea(request: TareaRequest) -> TareaResponse:
     """Encola una tarea; un worker aparte (worker_tareas.py) la ejecuta."""
@@ -915,13 +1000,31 @@ def crear_tarea(request: TareaRequest) -> TareaResponse:
     return TareaResponse(**tareas.obtener_tarea(id_tarea, r))
 
 
-@app.get("/tareas", response_model=List[TareaResponse], dependencies=[Depends(verificar_token_servicio)])
+@app.get(
+    "/tareas", response_model=List[TareaResponse], dependencies=[Depends(verificar_token_servicio)],
+    tags=["Opcion 2"], summary="Ultimas tareas",
+    description="Las tareas mas recientes primero (maximo 50). **Requiere** `X-IA-Token`.",
+    responses={401: R401, 403: R403, 503: _err("Redis no responde.", "La cola de tareas no esta disponible (Redis)")},
+)
 def listar_tareas(limite: int = 10) -> List[TareaResponse]:
     r = _redis_o_503()
     return [TareaResponse(**t) for t in tareas.listar_tareas(max(1, min(limite, 50)), r)]
 
 
-@app.get("/tareas/{id_tarea}", response_model=TareaResponse, dependencies=[Depends(verificar_token_servicio)])
+@app.get(
+    "/tareas/{id_tarea}", response_model=TareaResponse, dependencies=[Depends(verificar_token_servicio)],
+    tags=["Opcion 2"], summary="Estado de una tarea",
+    description=(
+        "Estados: `pendiente` -> `en_curso` -> `completada` | `error`. Si termina en error, "
+        "`detalle` trae las ultimas lineas de salida. Las tareas se conservan 7 dias. "
+        "**Requiere** `X-IA-Token`."
+    ),
+    responses={
+        401: R401, 403: R403,
+        404: _err("No existe esa tarea (o ya expiro).", "Tarea no encontrada"),
+        503: _err("Redis no responde.", "La cola de tareas no esta disponible (Redis)"),
+    },
+)
 def estado_tarea(id_tarea: str) -> TareaResponse:
     r = _redis_o_503()
     t = tareas.obtener_tarea(id_tarea, r)
@@ -995,7 +1098,16 @@ def _estado_gemini() -> ComponenteEstado:
     return comp.model_copy()
 
 
-@app.get("/estado", response_model=EstadoResponse, dependencies=[Depends(verificar_token_servicio)])
+@app.get(
+    "/estado", response_model=EstadoResponse, dependencies=[Depends(verificar_token_servicio)],
+    tags=["Opcion 2"], summary="Estado de cada pieza del sistema",
+    description=(
+        "Comprueba el modelo de pronostico, la busqueda vectorial (BD con embeddings), Redis y Gemini "
+        "(solo lista modelos: no genera texto ni gasta tokens; cacheado 60 s). Siempre responde 200; "
+        "una pieza caida se refleja en su `estado` y en `modo_degradado`. **Requiere** `X-IA-Token`."
+    ),
+    responses={401: R401, 403: R403},
+)
 def estado_sistema() -> EstadoResponse:
     """
     Consulta cada pieza. El modo degradado se declara cuando falla el modelo de
