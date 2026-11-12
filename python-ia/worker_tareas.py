@@ -34,7 +34,7 @@ def procesar_una(r, espera_s: int = 5) -> bool:
 
 
 def main() -> None:
-    logger.info("Worker iniciado (%s)", tareas.REDIS_URL)
+    logger.info("Worker iniciado")
     while True:
         try:
             procesar_una(tareas.obtener_redis())

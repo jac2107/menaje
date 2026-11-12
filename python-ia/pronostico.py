@@ -82,3 +82,11 @@ def cargar_error_baseline() -> Dict[str, float]:
         return datos.get("error_validacion_mae", {})
     except Exception:
         return {}
+
+
+def mtime_modelo() -> Optional[float]:
+    """Fecha de modificacion de meta.json (cambia cuando se reentrena)."""
+    try:
+        return (directorio_modelo() / "meta.json").stat().st_mtime
+    except OSError:
+        return None

@@ -24,7 +24,6 @@ import redis
 
 logger = logging.getLogger("menaje.ia")
 
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 RAIZ_ML = Path(__file__).resolve().parent.parent / "python-ml"
 TIMEOUT_TAREA_S = int(os.getenv("TAREA_TIMEOUT_S", "1800"))
 # Un candado huerfano (worker caido a mitad) caduca solo pasado este tiempo.
@@ -55,7 +54,7 @@ def obtener_redis() -> "redis.Redis":
     global _cliente
     if _cliente is None:
         _cliente = redis.Redis.from_url(
-            REDIS_URL, decode_responses=True,
+            os.getenv("REDIS_URL", "redis://localhost:6379/0"), decode_responses=True,
             socket_connect_timeout=2, socket_timeout=5,
         )
     return _cliente

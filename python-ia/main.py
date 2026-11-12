@@ -8,7 +8,9 @@ import logging
 import os
 import secrets
 import sys
+import concurrent.futures
 import threading
+import time
 import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -32,6 +34,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
 import pronostico
+import tareas
 
 # ============================================================
 # CONFIGURACIÓN
@@ -199,6 +202,33 @@ class ProductoSimilar(BaseModel):
 
 class BusquedaSemanticaResponse(BaseModel):
     resultados: List[ProductoSimilar]
+
+
+class TareaRequest(BaseModel):
+    tipo: Literal["reentrenar_pronostico", "regenerar_embeddings"]
+
+
+class TareaResponse(BaseModel):
+    id: str
+    tipo: str
+    estado: Literal["pendiente", "en_curso", "completada", "error"]
+    creada: str
+    inicio: str = ""
+    fin: str = ""
+    detalle: str = ""
+
+
+class ComponenteEstado(BaseModel):
+    estado: Literal["ok", "degradado", "caido"]
+    detalle: str = ""
+    latencia_ms: Optional[int] = None
+
+
+class EstadoResponse(BaseModel):
+    estado_general: Literal["ok", "degradado"]
+    modo_degradado: bool
+    componentes: Dict[str, ComponenteEstado]
+    datos_pronostico: str = "SINTETICOS"
 
 
 class PronosticoRequest(BaseModel):
@@ -783,17 +813,23 @@ def busqueda_semantica(request: BusquedaSemanticaRequest) -> BusquedaSemanticaRe
 
 # --- Pronostico de demanda por categoria (OPCION 2, capa 9) ---
 _modelo_pronostico = None
+_modelo_pronostico_mtime = None
 _pronostico_lock = threading.Lock()
 
 
 def obtener_modelo_pronostico():
     """Carga el modelo la primera vez que se pide. Si falla devuelve None (y se
     reintenta en la siguiente peticion, por si el paquete se regenera)."""
-    global _modelo_pronostico
+    global _modelo_pronostico, _modelo_pronostico_mtime
+    # Si el worker reentreno (meta.json cambio), se descarta el modelo en memoria.
+    mtime = pronostico.mtime_modelo()
+    if _modelo_pronostico is not None and mtime != _modelo_pronostico_mtime:
+        _modelo_pronostico = None
     if _modelo_pronostico is None:
         with _pronostico_lock:
             if _modelo_pronostico is None:
                 _modelo_pronostico = pronostico.cargar_modelo()
+                _modelo_pronostico_mtime = mtime
     return _modelo_pronostico
 
 
@@ -850,6 +886,136 @@ def pronostico_demanda(request: PronosticoRequest) -> PronosticoResponse:
     )
 
 
+# --- Tareas en segundo plano (OPCION 2, Fase 4) ---
+
+def _redis_o_503():
+    try:
+        r = tareas.obtener_redis()
+        r.ping()
+        return r
+    except Exception as error:
+        logger.error("Redis no disponible: %r", error)
+        raise HTTPException(status_code=503, detail="La cola de tareas no esta disponible (Redis)")
+
+
+@app.post(
+    "/tareas", response_model=TareaResponse, status_code=202,
+    dependencies=[Depends(verificar_token_servicio)],
+)
+def crear_tarea(request: TareaRequest) -> TareaResponse:
+    """Encola una tarea; un worker aparte (worker_tareas.py) la ejecuta."""
+    r = _redis_o_503()
+    try:
+        id_tarea = tareas.encolar(request.tipo, r)
+    except tareas.TareaActiva as activa:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Ya hay una tarea '{request.tipo}' pendiente o en curso (id {activa.id_existente})",
+        )
+    return TareaResponse(**tareas.obtener_tarea(id_tarea, r))
+
+
+@app.get("/tareas", response_model=List[TareaResponse], dependencies=[Depends(verificar_token_servicio)])
+def listar_tareas(limite: int = 10) -> List[TareaResponse]:
+    r = _redis_o_503()
+    return [TareaResponse(**t) for t in tareas.listar_tareas(max(1, min(limite, 50)), r)]
+
+
+@app.get("/tareas/{id_tarea}", response_model=TareaResponse, dependencies=[Depends(verificar_token_servicio)])
+def estado_tarea(id_tarea: str) -> TareaResponse:
+    r = _redis_o_503()
+    t = tareas.obtener_tarea(id_tarea, r)
+    if not t:
+        raise HTTPException(status_code=404, detail="Tarea no encontrada")
+    return TareaResponse(**t)
+
+
+# --- Estado del sistema (OPCION 2, Fase 4) ---
+_gemini_cache: Dict[str, Any] = {"hasta": 0.0, "valor": None}
+GEMINI_ESTADO_TTL_S = 60
+
+
+def _medir(fn) -> ComponenteEstado:
+    """Ejecuta una comprobacion; cualquier excepcion es 'caido'. Nunca lanza."""
+    t0 = time.monotonic()
+    try:
+        comp = fn()
+    except Exception as error:
+        comp = ComponenteEstado(estado="caido", detalle=f"{type(error).__name__}: {error}"[:200])
+    comp.latencia_ms = int((time.monotonic() - t0) * 1000)
+    return comp
+
+
+def _estado_pronostico() -> ComponenteEstado:
+    if obtener_modelo_pronostico() is not None:
+        return ComponenteEstado(estado="ok", detalle="modelo cargado")
+    if pronostico.cargar_baseline():
+        return ComponenteEstado(
+            estado="degradado",
+            detalle="el modelo no carga; se sirve el promedio historico por categoria y mes",
+        )
+    return ComponenteEstado(estado="caido", detalle="ni el modelo ni el promedio historico estan disponibles")
+
+
+def _estado_busqueda_vectorial() -> ComponenteEstado:
+    with obtener_conexion() as conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT count(*) FILTER (WHERE embedding IS NOT NULL), count(*) "
+            "FROM productos WHERE activo = TRUE"
+        )
+        con, total = cur.fetchone()
+    if total and con == 0:
+        return ComponenteEstado(estado="degradado", detalle="ningun producto tiene embedding; regenerarlos")
+    if con < total:
+        return ComponenteEstado(estado="degradado", detalle=f"{total - con} de {total} productos sin embedding")
+    return ComponenteEstado(estado="ok", detalle=f"{con} productos con embedding")
+
+
+def _estado_redis() -> ComponenteEstado:
+    tareas.obtener_redis().ping()
+    return ComponenteEstado(estado="ok", detalle="PING correcto")
+
+
+def _estado_gemini() -> ComponenteEstado:
+    """Lista modelos (no genera texto ni gasta tokens). Cache de 60 s y limite de 5 s."""
+    ahora = time.monotonic()
+    if _gemini_cache["valor"] is not None and ahora < _gemini_cache["hasta"]:
+        return _gemini_cache["valor"].model_copy()
+    objetivo = GEMINI_MODEL if GEMINI_MODEL.startswith("models/") else f"models/{GEMINI_MODEL}"
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    try:
+        nombres = pool.submit(lambda: [m.name for m in genai.list_models()]).result(timeout=5)
+    finally:
+        pool.shutdown(wait=False)  # no esperar a una llamada colgada
+    if objetivo in nombres:
+        comp = ComponenteEstado(estado="ok", detalle=f"modelo {GEMINI_MODEL} disponible")
+    else:
+        comp = ComponenteEstado(estado="caido", detalle=f"el modelo {GEMINI_MODEL} no aparece para esta clave")
+    _gemini_cache.update(hasta=ahora + GEMINI_ESTADO_TTL_S, valor=comp)
+    return comp.model_copy()
+
+
+@app.get("/estado", response_model=EstadoResponse, dependencies=[Depends(verificar_token_servicio)])
+def estado_sistema() -> EstadoResponse:
+    """
+    Consulta cada pieza. El modo degradado se declara cuando falla el modelo de
+    pronostico o la busqueda vectorial: el chat y el catalogo siguen como en la Opcion 1.
+    """
+    componentes = {
+        "pronostico": _medir(_estado_pronostico),
+        "busqueda_vectorial": _medir(_estado_busqueda_vectorial),
+        "redis": _medir(_estado_redis),
+        "gemini": _medir(_estado_gemini),
+    }
+    degradado = any(componentes[k].estado != "ok" for k in ("pronostico", "busqueda_vectorial"))
+    todo_ok = all(c.estado == "ok" for c in componentes.values())
+    return EstadoResponse(
+        estado_general="ok" if todo_ok else "degradado",
+        modo_degradado=degradado,
+        componentes=componentes,
+    )
+
+
 if __name__ == "__main__":
     print("=" * 60)
     print("🚀 INICIANDO SERVIDOR FASTAPI - Menaje IA Service")
@@ -862,6 +1028,6 @@ if __name__ == "__main__":
     else:
         print("📚 Documentación (Swagger): deshabilitada (IA_ENV != dev)")
     print(f"❤️  Health check: http://{IA_HOST}:{IA_PORT}/health")
-    print("🔒 POST /chat, /busqueda-semantica y /pronostico-demanda requieren la cabecera X-IA-Token")
+    print("🔒 POST /chat, /busqueda-semantica y /pronostico-demanda, /tareas y /estado requieren la cabecera X-IA-Token")
     print("=" * 60)
     uvicorn.run(app, host=IA_HOST, port=IA_PORT)
