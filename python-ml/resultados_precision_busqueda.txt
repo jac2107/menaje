@@ -1,0 +1,112 @@
+Modelo: intfloat/multilingual-e5-small | consultas: 15 | umbral de produccion: 0.85
+Ranking sobre productos activos con stock, sin umbral. Relevantes fijados a mano.
+
+'copas para brindar con champagne en un matrimonio'  relevantes=[3, 15]
+   P@3=0.33 (techo 0.67)  P@5=0.40 (techo 0.40)
+   1. OK [ 3] Copa Flauta Premium para Champagne  sim=0.909
+   2.    [ 4] Copa de Vino Tinto Tradicional  sim=0.853
+   3.    [35] Copa de Cristal 6oz Clásica  sim=0.852
+   4. OK [15] Copa Flauta Dorada Premium  sim=0.851
+   5.    [19] Copa Margarita Cristal  sim=0.850  (bajo el umbral de produccion)
+'copa para servir vino tinto'  relevantes=[4, 14]
+   P@3=0.67 (techo 0.67)  P@5=0.40 (techo 0.40)
+   1. OK [ 4] Copa de Vino Tinto Tradicional  sim=0.935
+   2. OK [14] Copa de Vino Verde Bohemia  sim=0.902
+   3.    [35] Copa de Cristal 6oz Clásica  sim=0.883
+   4.    [ 3] Copa Flauta Premium para Champagne  sim=0.867
+   5.    [19] Copa Margarita Cristal  sim=0.865
+'cubiertos dorados para una cena de gala'  relevantes=[9, 10, 11, 33]
+   P@3=1.00 (techo 1.00)  P@5=0.80 (techo 0.80)
+   1. OK [11] Cuchara Dorada Premium  sim=0.912
+   2. OK [ 9] Tenedor Dorado Premium  sim=0.899
+   3. OK [10] Cuchillo Dorado Premium  sim=0.895
+   4. OK [33] Cubierto Desechable Oro (set)  sim=0.877
+   5.    [12] Plato de Sitio Vidrio Bordes Dorados  sim=0.874
+'tenedor de acero inoxidable para la mesa'  relevantes=[6]
+   P@3=0.33 (techo 0.33)  P@5=0.20 (techo 0.20)
+   1. OK [ 6] Tenedor de Mesa Acero Inoxidable  sim=0.923
+   2.    [ 9] Tenedor Dorado Premium  sim=0.902
+   3.    [23] Cuchara Sopera Clásica  sim=0.868
+   4.    [10] Cuchillo Dorado Premium  sim=0.861
+   5.    [28] Servilletero de Metal  sim=0.854
+'platos desechables para una fiesta grande'  relevantes=[29, 30]
+   P@3=0.67 (techo 0.67)  P@5=0.40 (techo 0.40)
+   1. OK [29] Plato Desechable Blanco 10"  sim=0.911
+   2. OK [30] Plato Desechable Dorado 10"  sim=0.909
+   3.    [32] Cubierto Desechable Plata (set)  sim=0.887
+   4.    [33] Cubierto Desechable Oro (set)  sim=0.868
+   5.    [ 2] Plato Fondo Redondo Cúpula 27cm  sim=0.857
+'vasos pequeños para servir tequila'  relevantes=[21]
+   P@3=0.33 (techo 0.33)  P@5=0.20 (techo 0.20)
+   1. OK [21] Vaso Shot Tequilero  sim=0.913
+   2.    [ 5] Vaso Alto Validus 12oz  sim=0.866
+   3.    [20] Vaso Old Fashioned Whisky  sim=0.862
+   4.    [16] Vaso Rústico de Madera  sim=0.856
+   5.    [31] Vaso Plástico Transparente 9oz  sim=0.856
+'vaso ancho para tomar whisky con hielo'  relevantes=[20]
+   P@3=0.33 (techo 0.33)  P@5=0.20 (techo 0.20)
+   1. OK [20] Vaso Old Fashioned Whisky  sim=0.882
+   2.    [ 5] Vaso Alto Validus 12oz  sim=0.863
+   3.    [21] Vaso Shot Tequilero  sim=0.852
+   4.    [26] Cubeta de Hielo Acero Inoxidable  sim=0.843  (bajo el umbral de produccion)
+   5.    [31] Vaso Plástico Transparente 9oz  sim=0.838  (bajo el umbral de produccion)
+'mantel dorado brillante'  relevantes=[17, 34]
+   P@3=0.67 (techo 0.67)  P@5=0.40 (techo 0.40)
+   1. OK [17] Mantel Dorado Satinado  sim=0.882
+   2. OK [34] Mantel Dorado 1.5x1.5m  sim=0.864
+   3.    [25] Mantel Redondo Satinado Blanco  sim=0.847  (bajo el umbral de produccion)
+   4.    [12] Plato de Sitio Vidrio Bordes Dorados  sim=0.839  (bajo el umbral de produccion)
+   5.    [15] Copa Flauta Dorada Premium  sim=0.832  (bajo el umbral de produccion)
+'mantel de yute estilo campestre'  relevantes=[18, 24]
+   P@3=0.67 (techo 0.67)  P@5=0.40 (techo 0.40)
+   1. OK [18] Mantel Rústico de Yute  sim=0.908
+   2. OK [24] Camino de Mesa Yute Rústico  sim=0.890
+   3.    [ 8] Mantel Rectangular Blanco Jacquard  sim=0.835  (bajo el umbral de produccion)
+   4.    [25] Mantel Redondo Satinado Blanco  sim=0.828  (bajo el umbral de produccion)
+   5.    [34] Mantel Dorado 1.5x1.5m  sim=0.823  (bajo el umbral de produccion)
+'mantel blanco elegante para mesa redonda'  relevantes=[8, 25]
+   P@3=0.67 (techo 0.67)  P@5=0.40 (techo 0.40)
+   1. OK [25] Mantel Redondo Satinado Blanco  sim=0.906
+   2. OK [ 8] Mantel Rectangular Blanco Jacquard  sim=0.899
+   3.    [34] Mantel Dorado 1.5x1.5m  sim=0.863
+   4.    [17] Mantel Dorado Satinado  sim=0.853
+   5.    [38] Mesa Redonda 1.2m Diámetro  sim=0.845  (bajo el umbral de produccion)
+'plato pequeño para servir el postre'  relevantes=[22]
+   P@3=0.33 (techo 0.33)  P@5=0.20 (techo 0.20)
+   1. OK [22] Plato Postre Cuadrado Moderno  sim=0.869
+   2.    [23] Cuchara Sopera Clásica  sim=0.849  (bajo el umbral de produccion)
+   3.    [30] Plato Desechable Dorado 10"  sim=0.849  (bajo el umbral de produccion)
+   4.    [ 1] Plato Entrada Tendencia Blanco 23cm  sim=0.845  (bajo el umbral de produccion)
+   5.    [29] Plato Desechable Blanco 10"  sim=0.844  (bajo el umbral de produccion)
+'mesa redonda para ocho personas'  relevantes=[38]
+   P@3=0.33 (techo 0.33)  P@5=0.20 (techo 0.20)
+   1. OK [38] Mesa Redonda 1.2m Diámetro  sim=0.883
+   2.    [ 2] Plato Fondo Redondo Cúpula 27cm  sim=0.837  (bajo el umbral de produccion)
+   3.    [12] Plato de Sitio Vidrio Bordes Dorados  sim=0.826  (bajo el umbral de produccion)
+   4.    [11] Cuchara Dorada Premium  sim=0.822  (bajo el umbral de produccion)
+   5.    [22] Plato Postre Cuadrado Moderno  sim=0.818  (bajo el umbral de produccion)
+'recipiente para enfriar bebidas con hielo'  relevantes=[26]
+   P@3=0.33 (techo 0.33)  P@5=0.20 (techo 0.20)
+   1. OK [26] Cubeta de Hielo Acero Inoxidable  sim=0.890
+   2.    [36] Jarra de Cristal 1.5L  sim=0.856
+   3.    [ 9] Tenedor Dorado Premium  sim=0.834  (bajo el umbral de produccion)
+   4.    [19] Copa Margarita Cristal  sim=0.833  (bajo el umbral de produccion)
+   5.    [ 5] Vaso Alto Validus 12oz  sim=0.832  (bajo el umbral de produccion)
+'jarra grande de cristal para servir agua'  relevantes=[36]
+   P@3=0.33 (techo 0.33)  P@5=0.20 (techo 0.20)
+   1. OK [36] Jarra de Cristal 1.5L  sim=0.927
+   2.    [19] Copa Margarita Cristal  sim=0.859
+   3.    [ 5] Vaso Alto Validus 12oz  sim=0.855
+   4.    [35] Copa de Cristal 6oz Clásica  sim=0.834  (bajo el umbral de produccion)
+   5.    [15] Copa Flauta Dorada Premium  sim=0.829  (bajo el umbral de produccion)
+'porta servilletas de metal'  relevantes=[28]
+   P@3=0.33 (techo 0.33)  P@5=0.20 (techo 0.20)
+   1. OK [28] Servilletero de Metal  sim=0.879
+   2.    [12] Plato de Sitio Vidrio Bordes Dorados  sim=0.838  (bajo el umbral de produccion)
+   3.    [34] Mantel Dorado 1.5x1.5m  sim=0.832  (bajo el umbral de produccion)
+   4.    [ 2] Plato Fondo Redondo Cúpula 27cm  sim=0.828  (bajo el umbral de produccion)
+   5.    [ 9] Tenedor Dorado Premium  sim=0.826  (bajo el umbral de produccion)
+
+=== RESUMEN ===
+precision@3 = 0.489   techo posible = 0.511   normalizada = 0.957
+precision@5 = 0.320   techo posible = 0.320   normalizada = 1.000
