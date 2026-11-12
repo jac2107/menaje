@@ -57,6 +57,11 @@ app.use((err, _req, res, _next) => {
 });
 
 // ── Arranque ──────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
-  console.log(`Servidor corriendo en http://localhost:${PORT}`);
-});
+// Solo escucha si se ejecuta directamente (node server.js); los tests importan `app`.
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Servidor corriendo en http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;
