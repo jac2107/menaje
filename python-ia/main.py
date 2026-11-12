@@ -241,6 +241,11 @@ UMBRAL_SIMILITUD = float(os.getenv("BUSQUEDA_UMBRAL_SIMILITUD", "0.85"))
 
 # --- RAG en el chat (OPCION 2, Fase 2) ---
 # Umbral para la memoria de conversaciones pasadas (mensaje contra mensaje).
+# Umbral de productos SOLO para el chat. Mas bajo que BUSQUEDA_UMBRAL_SIMILITUD porque las
+# preguntas coloquiales ("¿Tienen sillas para una fiesta infantil?") puntuan menos que las
+# descripciones de la caja de busqueda. 0.82 calibrado con python-ml/medir_umbral_chat.py
+# (resultados_umbral_chat.txt): es el menor valor con 0 resultados fuera del catalogo.
+RAG_CHAT_UMBRAL_SIMILITUD = float(os.getenv("RAG_CHAT_UMBRAL_SIMILITUD", "0.82"))
 MEMORIA_UMBRAL_SIMILITUD = float(os.getenv("MEMORIA_UMBRAL_SIMILITUD", "0.85"))
 RAG_PRODUCTOS_MAX = int(os.getenv("RAG_PRODUCTOS_MAX", "5"))
 RAG_MEMORIA_MAX = int(os.getenv("RAG_MEMORIA_MAX", "3"))
@@ -364,7 +369,9 @@ def vector_literal(texto: str) -> str:
     return "[" + ",".join(f"{x:.7f}" for x in vector) + "]"
 
 
-def consultar_productos_similares(literal: str, limite: int) -> List[Dict[str, Any]]:
+def consultar_productos_similares(
+    literal: str, limite: int, umbral: float = UMBRAL_SIMILITUD
+) -> List[Dict[str, Any]]:
     """Productos activos con stock por encima del umbral, de mas a menos similares. Lanza psycopg2.Error."""
     with obtener_conexion() as conn, conn.cursor(
         cursor_factory=psycopg2.extras.RealDictCursor
@@ -385,7 +392,7 @@ def consultar_productos_similares(literal: str, limite: int) -> List[Dict[str, A
             ORDER BY p.embedding <=> %s::vector
             LIMIT %s
             """,
-            (literal, literal, UMBRAL_SIMILITUD, literal, limite),
+            (literal, literal, umbral, literal, limite),
         )
         return [dict(f) for f in cur.fetchall()]
 
@@ -432,7 +439,9 @@ def recuperar_rag(usuario_id: int, mensaje: str) -> Dict[str, Any]:
         return rag
 
     try:
-        rag["productos"] = consultar_productos_similares(rag["embedding"], RAG_PRODUCTOS_MAX)
+        rag["productos"] = consultar_productos_similares(
+            rag["embedding"], RAG_PRODUCTOS_MAX, RAG_CHAT_UMBRAL_SIMILITUD
+        )
     except Exception as error:
         logger.error("RAG degradado: fallo la busqueda de productos: %r", error)
 
