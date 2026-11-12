@@ -12,7 +12,7 @@ import threading
 import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Literal, Optional
 
 # En Windows la consola suele usar cp1252, que no soporta emojis. Los mensajes de
 # diagnostico ya no los llevan (van por logging, sin emoji), pero el banner de
@@ -30,6 +30,8 @@ import uvicorn
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
+
+import pronostico
 
 # ============================================================
 # CONFIGURACIÓN
@@ -197,6 +199,30 @@ class ProductoSimilar(BaseModel):
 
 class BusquedaSemanticaResponse(BaseModel):
     resultados: List[ProductoSimilar]
+
+
+class PronosticoRequest(BaseModel):
+    tipo_evento: Literal[
+        "boda", "quinceanos", "bautizo", "cumpleanos",
+        "graduacion", "corporativo", "baby_shower",
+    ]
+    mes: int = Field(ge=1, le=12)
+    asistentes: int = Field(ge=1, le=5000)
+
+
+class DemandaCategoria(BaseModel):
+    categoria: str
+    cantidad_estimada: int
+    # MAE (en unidades) de esa categoria sobre el conjunto de validacion: cuanto se
+    # puede equivocar, de media, la estimacion. None si no hay medida disponible.
+    error_validacion_mae: Optional[float] = None
+
+
+class PronosticoResponse(BaseModel):
+    modo: Literal["modelo", "degradado"]
+    aviso: Optional[str] = None
+    datos_entrenamiento: str = "SINTETICOS"
+    demanda: List[DemandaCategoria]
 
 
 # ============================================================
@@ -755,6 +781,75 @@ def busqueda_semantica(request: BusquedaSemanticaRequest) -> BusquedaSemanticaRe
     return BusquedaSemanticaResponse(resultados=[ProductoSimilar(**f) for f in filas])
 
 
+# --- Pronostico de demanda por categoria (OPCION 2, capa 9) ---
+_modelo_pronostico = None
+_pronostico_lock = threading.Lock()
+
+
+def obtener_modelo_pronostico():
+    """Carga el modelo la primera vez que se pide. Si falla devuelve None (y se
+    reintenta en la siguiente peticion, por si el paquete se regenera)."""
+    global _modelo_pronostico
+    if _modelo_pronostico is None:
+        with _pronostico_lock:
+            if _modelo_pronostico is None:
+                _modelo_pronostico = pronostico.cargar_modelo()
+    return _modelo_pronostico
+
+
+@app.post(
+    "/pronostico-demanda",
+    response_model=PronosticoResponse,
+    dependencies=[Depends(verificar_token_servicio)],
+)
+def pronostico_demanda(request: PronosticoRequest) -> PronosticoResponse:
+    """
+    Demanda estimada por categoria de producto para un evento. Usa la red entrenada
+    con datos SINTETICOS; si no carga, devuelve el promedio historico por categoria y
+    mes en modo degradado (sin distinguir tipo de evento ni asistentes).
+    """
+    modelo = obtener_modelo_pronostico()
+    if modelo is not None:
+        try:
+            est = modelo.predecir(request.tipo_evento, request.mes, request.asistentes)
+            errores = modelo.meta.get("error_validacion_mae", {})
+            aviso = None
+            maximo = modelo.meta.get("asistentes_max_entrenado")
+            if maximo and request.asistentes > maximo:
+                aviso = (f"{request.asistentes} asistentes supera el maximo visto en el "
+                         f"entrenamiento ({maximo}); la estimacion es menos fiable.")
+            return PronosticoResponse(
+                modo="modelo",
+                aviso=aviso,
+                demanda=[
+                    DemandaCategoria(
+                        categoria=c, cantidad_estimada=round(v),
+                        error_validacion_mae=round(errores[c], 2) if c in errores else None,
+                    )
+                    for c, v in est.items()
+                ],
+            )
+        except Exception as error:
+            logger.error("Pronostico: fallo la inferencia, modo degradado: %r", error)
+
+    base = pronostico.cargar_baseline()
+    if not base or str(request.mes) not in base:
+        raise HTTPException(status_code=503, detail="El pronostico no esta disponible")
+    errores = pronostico.cargar_error_baseline()
+    return PronosticoResponse(
+        modo="degradado",
+        aviso=("Modo degradado: el modelo no esta disponible; se muestra el promedio "
+               "historico por categoria y mes, sin considerar tipo de evento ni asistentes."),
+        demanda=[
+            DemandaCategoria(
+                categoria=c, cantidad_estimada=round(v),
+                error_validacion_mae=round(errores[c], 2) if c in errores else None,
+            )
+            for c, v in base[str(request.mes)].items()
+        ],
+    )
+
+
 if __name__ == "__main__":
     print("=" * 60)
     print("🚀 INICIANDO SERVIDOR FASTAPI - Menaje IA Service")
@@ -767,6 +862,6 @@ if __name__ == "__main__":
     else:
         print("📚 Documentación (Swagger): deshabilitada (IA_ENV != dev)")
     print(f"❤️  Health check: http://{IA_HOST}:{IA_PORT}/health")
-    print("🔒 POST /chat y /busqueda-semantica requieren la cabecera X-IA-Token")
+    print("🔒 POST /chat, /busqueda-semantica y /pronostico-demanda requieren la cabecera X-IA-Token")
     print("=" * 60)
     uvicorn.run(app, host=IA_HOST, port=IA_PORT)
