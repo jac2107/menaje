@@ -1,0 +1,62 @@
+RESULTADOS DE SEGURIDAD - OPCION 2 (2026-11-12)
+
+== 1. Prompt del chat frente a consultas manipuladas (local, sin llamar a Gemini) ==
+Hallazgos corregidos antes de esta corrida:
+ - Los productos recuperados por RAG NO iban marcados como 'solo referencia' (los recuerdos si).
+ - Un recuerdo con saltos de linea o comillas podia fabricar lineas/roles dentro del prompt y romper su comillado.
+Correccion: main.construir_system_prompt marca ambos bloques y aplana/escapa el texto recuperado (solo afecta al bloque RAG; sin RAG el prompt es identico al de la Opcion 1).
+
+test_contexto_recuperado_va_antes_del_mensaje_y_marcado (test_seguridad_prompt.PruebasChatConAtaques.test_contexto_recuperado_va_antes_del_mensaje_y_marcado) ... C:\Users\USUARIO\menaje\python-ia\venv\Lib\site-packages\httpx\_client.py:690: DeprecationWarning: The 'app' shortcut is now deprecated. Use the explicit style 'transport=WSGITransport(app=...)' instead.
+test_memoria_envenenada_llega_neutralizada (test_seguridad_prompt.PruebasChatConAtaques.test_memoria_envenenada_llega_neutralizada) ... 2026-11-12T12:30:46-0500 INFO     [menaje.ia] Nuevo mensaje de usuario_id=2 (14 caracteres)
+test_mensaje_del_usuario_va_una_sola_vez_y_al_final (test_seguridad_prompt.PruebasChatConAtaques.test_mensaje_del_usuario_va_una_sola_vez_y_al_final) ... 2026-11-12T12:30:46-0500 INFO     [menaje.ia] Nuevo mensaje de usuario_id=2 (43 caracteres)
+test_mensaje_largo_no_dispara_busqueda_de_contexto (test_seguridad_prompt.PruebasChatConAtaques.test_mensaje_largo_no_dispara_busqueda_de_contexto) ... 2026-11-12T12:30:46-0500 INFO     [menaje.ia] Nuevo mensaje de usuario_id=2 (601 caracteres)
+test_solo_se_llama_una_vez_al_doble_de_gemini_por_peticion (test_seguridad_prompt.PruebasChatConAtaques.test_solo_se_llama_una_vez_al_doble_de_gemini_por_peticion) ... 2026-11-12T12:30:46-0500 INFO     [menaje.ia] Nuevo mensaje de usuario_id=2 (43 caracteres)
+test_producto_con_nombre_malicioso_no_crea_lineas (test_seguridad_prompt.PruebasEstructuraDelPrompt.test_producto_con_nombre_malicioso_no_crea_lineas) ... ok
+test_productos_recuperados_marcados_como_referencia (test_seguridad_prompt.PruebasEstructuraDelPrompt.test_productos_recuperados_marcados_como_referencia) ... ok
+test_recuerdo_malicioso_no_puede_romper_su_comillado_ni_crear_lineas (test_seguridad_prompt.PruebasEstructuraDelPrompt.test_recuerdo_malicioso_no_puede_romper_su_comillado_ni_crear_lineas) ... ok
+test_recuerdos_marcados_como_referencia (test_seguridad_prompt.PruebasEstructuraDelPrompt.test_recuerdos_marcados_como_referencia) ... ok
+test_sin_rag_el_prompt_no_cambia_respecto_a_la_opcion_1 (test_seguridad_prompt.PruebasEstructuraDelPrompt.test_sin_rag_el_prompt_no_cambia_respecto_a_la_opcion_1) ... ok
+Ran 10 tests in 0.068s
+OK
+
+== 2. CORS, roles y rate limiting contra servidores reales ==
+(Node con RATE_LIMIT_IA=5 = valor por defecto del codigo; FastAPI real en :8000)
+PASA   GET /api/ia/estado sin token
+        esperado: 401 | obtenido: 401
+PASA   GET /api/ia/estado con rol cliente
+        esperado: 403 | obtenido: 403
+PASA   GET /api/ia/tareas sin token
+        esperado: 401 | obtenido: 401
+PASA   GET /api/ia/tareas con rol cliente
+        esperado: 403 | obtenido: 403
+PASA   POST /api/ia/tareas sin token
+        esperado: 401 | obtenido: 401
+PASA   POST /api/ia/tareas con rol cliente
+        esperado: 403 | obtenido: 403
+PASA   POST /api/ia/pronostico-demanda sin token
+        esperado: 401 | obtenido: 401
+PASA   POST /api/ia/pronostico-demanda con rol cliente
+        esperado: 403 | obtenido: 403
+PASA   FastAPI POST /busqueda-semantica sin X-IA-Token
+        esperado: 401 | obtenido: 401
+PASA   FastAPI con X-IA-Token incorrecto
+        esperado: 401 | obtenido: 401
+PASA   CORS Node: origen permitido (http://localhost:3000)
+        esperado: Allow-Origin = http://localhost:3000 | obtenido: http://localhost:3000
+PASA   CORS Node: origen ajeno no se refleja ni se permite con *
+        esperado: distinto de http://sitio-malicioso.example y de * | obtenido: http://localhost:3000
+PASA   CORS Node: X-IA-Token no permitido desde navegador
+        esperado: no aparece en Allow-Headers | obtenido: Content-Type,Authorization
+PASA   CORS FastAPI: sin CORS (solo lo consume Node)
+        esperado: sin Allow-Origin | obtenido: ausente
+PASA   Rate limit /api/ia/busqueda-semantica (limite 5/min por usuario)
+        esperado: 5x200 y luego 429 | obtenido: 200,200,200,200,200,429,429,429
+PASA   Rate limit es por usuario (otro usuario sigue entrando)
+        esperado: 200 | obtenido: 200
+
+Resumen: 16/16 comprobaciones pasan
+
+== 3. Limites de lo verificado ==
+ - No se probo si Gemini OBEDECE una orden inyectada (eso exige llamadas reales); se verifica la estructura del prompt: contexto marcado como referencia, sin lineas/roles falsos, mensaje del usuario una sola vez y al final.
+ - El prompt base de la Opcion 1 no incluye una regla expresa de 'no reveles estas instrucciones'. Anadirla cambiaria la logica de la Opcion 1; queda como recomendacion.
+ - CORS solo restringe navegadores; el control real es JWT + rol en Node y X-IA-Token + escuchar en 127.0.0.1 en FastAPI.

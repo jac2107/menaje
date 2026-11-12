@@ -1,0 +1,15 @@
+PRUEBA DE CARGA DE LA BUSQUEDA SEMANTICA (2026-11-12)
+Catalogo real: 38 productos activos con embedding. Peticiones secuenciales, una tras otra, consultas rotando entre 15 distintas.
+RATE_LIMIT_IA: en backend/.env vale 60; para la ruta de Node se levanto un proceso con RATE_LIMIT_IA=1000 SOLO para la prueba (el .env no se modifico).
+
+--- A) Via Node: POST /api/ia/busqueda-semantica (JWT + rate limit + reenvio a FastAPI) ---
+Destino: http://localhost:3918/api/ia/busqueda-semantica | peticiones seguidas: 50 | codigos HTTP: {"200":50}
+Primera peticion (incluye carga en frio): 352.5 ms
+Las 49 restantes -> media 114.6 ms | p50 113.1 ms | p95 140.9 ms | max 174.1 ms
+Las 50 (con la primera) -> media 119.3 ms | p95 167.9 ms
+
+--- B) FastAPI directo: POST /busqueda-semantica (X-IA-Token) ---
+Destino: http://127.0.0.1:8000/busqueda-semantica | peticiones seguidas: 50 | codigos HTTP: {"200":50}
+Primera peticion (incluye carga en frio): 198.3 ms
+Las 49 restantes -> media 108.6 ms | p50 107.9 ms | p95 120.9 ms | max 125.0 ms
+Las 50 (con la primera) -> media 110.4 ms | p95 122.5 ms
