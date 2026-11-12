@@ -1,5 +1,6 @@
 """
-Genera el embedding de cada producto activo (nombre + descripcion + categoria)
+Genera el embedding de cada producto activo (nombre + categoria + descripcion +
+descripcion_busqueda)
 y lo guarda en productos.embedding. Se puede ejecutar las veces que se quiera:
 cada ejecucion sobrescribe el vector de la misma fila (UPDATE), sin duplicar.
 
@@ -27,8 +28,10 @@ DSN = (
 )
 
 
-def texto_producto(nombre: str, descripcion: str | None, categoria: str) -> str:
-    partes = [nombre, categoria, descripcion or ""]
+def texto_producto(
+    nombre: str, descripcion: str | None, categoria: str, descripcion_busqueda: str | None
+) -> str:
+    partes = [nombre, categoria, descripcion or "", descripcion_busqueda or ""]
     return ". ".join(p.strip() for p in partes if p and p.strip())
 
 
@@ -41,7 +44,7 @@ def main() -> None:
     with psycopg.connect(DSN) as conn:
         register_vector(conn)
         filas = conn.execute(
-            f"""SELECT p.id, p.nombre, p.descripcion, c.nombre
+            f"""SELECT p.id, p.nombre, p.descripcion, c.nombre, p.descripcion_busqueda
                   FROM productos p JOIN categorias c ON c.id = p.categoria_id
                  WHERE p.activo = TRUE {filtro} ORDER BY p.id"""
         ).fetchall()
@@ -49,7 +52,7 @@ def main() -> None:
             print("Nada que procesar.")
             return
         vecs = SentenceTransformer(MODEL).encode(
-            [PREFIJO_DOC + texto_producto(n, d, c) for _, n, d, c in filas], normalize_embeddings=True
+            [PREFIJO_DOC + texto_producto(n, d, c, db) for _, n, d, c, db in filas], normalize_embeddings=True
         )
         with conn.cursor() as cur:
             cur.executemany(
