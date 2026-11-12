@@ -1,5 +1,6 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = require('express-rate-limit');
 const router  = express.Router();
 
 const { autenticar, autorizar } = require('../middleware/auth');
@@ -173,6 +174,72 @@ router.post('/ia/pronostico-demanda', autenticar, autorizar('dueno'), iaRateLimi
         console.error('❌ Error en /api/ia/pronostico-demanda:', error.message);
         return res.status(500).json({ success: false, error: 'Error procesando tu solicitud' });
     }
+});
+
+// ── PANEL DE ADMINISTRACION IA (OPCION 2, Fase 4) · solo rol "dueno" ─────────
+// El panel consulta estado y tareas cada pocos segundos, asi que las lecturas usan
+// un limite mas holgado (por usuario) que el de iaRateLimiter (5/min, que se
+// conserva para las acciones: lanzar tareas y pronosticos).
+const LIMITE_PANEL = Number.parseInt(process.env.RATE_LIMIT_PANEL_IA ?? '', 10) || 60;
+const panelLecturaLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: LIMITE_PANEL,
+  keyGenerator: (req) => (req.usuario?.id ? `u:${req.usuario.id}` : `ip:${ipKeyGenerator(req.ip)}`),
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { success: false, error: 'Demasiadas solicitudes. Intenta de nuevo en 1 minuto.' }
+});
+
+const responderAdmin = (res, r) => (
+  r.success
+    ? res.status(r.status === 202 ? 202 : 200).json({ success: true, data: r.data })
+    : res.status(r.status || 500).json({ success: false, error: r.error })
+);
+
+/** GET /api/ia/estado — consulta modelo de pronostico, busqueda vectorial, Redis y Gemini */
+router.get('/ia/estado', autenticar, autorizar('dueno'), panelLecturaLimiter, async (_req, res) => {
+  try {
+    return responderAdmin(res, await iaService.estadoSistema());
+  } catch (error) {
+    console.error('❌ Error en /api/ia/estado:', error.message);
+    return res.status(500).json({ success: false, error: 'Error procesando tu solicitud' });
+  }
+});
+
+/** POST /api/ia/tareas { tipo: "reentrenar_pronostico" | "regenerar_embeddings" } */
+const TIPOS_TAREA = ['reentrenar_pronostico', 'regenerar_embeddings'];
+router.post('/ia/tareas', autenticar, autorizar('dueno'), iaRateLimiter, async (req, res) => {
+  try {
+    const { tipo } = req.body;
+    if (!TIPOS_TAREA.includes(tipo)) {
+      return res.status(400).json({ success: false, error: `"tipo" debe ser uno de: ${TIPOS_TAREA.join(', ')}` });
+    }
+    return responderAdmin(res, await iaService.crearTarea(tipo));
+  } catch (error) {
+    console.error('❌ Error en POST /api/ia/tareas:', error.message);
+    return res.status(500).json({ success: false, error: 'Error procesando tu solicitud' });
+  }
+});
+
+/** GET /api/ia/tareas — ultimas tareas */
+router.get('/ia/tareas', autenticar, autorizar('dueno'), panelLecturaLimiter, async (_req, res) => {
+  try {
+    return responderAdmin(res, await iaService.listarTareas());
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'Error procesando tu solicitud' });
+  }
+});
+
+/** GET /api/ia/tareas/:id — estado de una tarea */
+router.get('/ia/tareas/:id', autenticar, autorizar('dueno'), panelLecturaLimiter, async (req, res) => {
+  try {
+    if (!/^[0-9a-f]{32}$/.test(req.params.id)) {
+      return res.status(400).json({ success: false, error: 'Id de tarea no válido' });
+    }
+    return responderAdmin(res, await iaService.estadoTarea(req.params.id));
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'Error procesando tu solicitud' });
+  }
 });
 
 /**

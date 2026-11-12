@@ -150,9 +150,66 @@ async function pronosticoDemanda(tipoEvento, mes, asistentes) {
     }
 }
 
+/**
+ * OPCION 2 (Fase 4): llamada generica de administracion a FastAPI. Devuelve
+ * { success, status, data | error }. Los 4xx del microservicio (409 tarea ya en
+ * curso, 404 tarea inexistente...) son seguros de mostrar; los 5xx se enmascaran.
+ */
+async function llamarAdmin(metodo, ruta, cuerpo, timeout = 15000) {
+    try {
+        const response = await axios.request({
+            method: metodo,
+            url: `${PYTHON_IA_URL}${ruta}`,
+            data: cuerpo,
+            timeout,
+            headers: { 'Content-Type': 'application/json', 'X-IA-Token': IA_SERVICE_TOKEN }
+        });
+        return { success: true, status: response.status, data: response.data };
+    } catch (error) {
+        console.error(`❌ Error en ${metodo} ${ruta}:`, error.message);
+        const status = error.response?.status;
+        if (status === 404 || status === 409) {
+            return { success: false, status, error: error.response.data?.detail || 'Solicitud no válida' };
+        }
+        if (status >= 400 && status < 500) {
+            return { success: false, status: 400, error: 'Solicitud no válida para el servicio de IA' };
+        }
+        return { success: false, status: 503, error: 'El servicio de IA no está disponible en este momento.' };
+    }
+}
+
+const crearTarea = (tipo) => llamarAdmin('post', '/tareas', { tipo });
+const listarTareas = () => llamarAdmin('get', '/tareas');
+const estadoTarea = (id) => llamarAdmin('get', `/tareas/${encodeURIComponent(id)}`);
+
+/**
+ * Estado de cada pieza. Si FastAPI no responde, NO es un error del panel: se devuelve
+ * un estado "degradado" con ia_servicio caido, para que el panel lo muestre.
+ */
+async function estadoSistema() {
+    const r = await llamarAdmin('get', '/estado', undefined, 20000);
+    if (r.success) return r;
+    return {
+        success: true,
+        status: 200,
+        data: {
+            estado_general: 'degradado',
+            modo_degradado: true,
+            componentes: {
+                ia_servicio: { estado: 'caido', detalle: 'FastAPI no responde' }
+            },
+            datos_pronostico: 'SINTETICOS'
+        }
+    };
+}
+
 module.exports = {
     chatConIA,
     verificarIA,
     busquedaSemantica,
-    pronosticoDemanda
+    pronosticoDemanda,
+    crearTarea,
+    listarTareas,
+    estadoTarea,
+    estadoSistema
 };
