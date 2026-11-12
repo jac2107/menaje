@@ -100,6 +100,46 @@ router.post('/ia/chat', autenticar, iaRateLimiter, async (req, res) => {
 });
 
 /**
+ * POST /api/ia/busqueda-semantica   (OPCION 2)
+ * Reenvia la descripcion a FastAPI; devuelve productos con stock por similitud.
+ * Requiere: JWT. Body: { descripcion: string, limite?: 1-20 }
+ */
+router.post('/ia/busqueda-semantica', autenticar, iaRateLimiter, async (req, res) => {
+    try {
+        const { descripcion, limite = 5 } = req.body;
+
+        if (typeof descripcion !== 'string' || descripcion.trim().length < 2) {
+            return res.status(400).json({
+                success: false,
+                error: 'El campo "descripcion" es requerido (mínimo 2 caracteres)'
+            });
+        }
+        if (descripcion.length > 500) {
+            return res.status(400).json({
+                success: false,
+                error: 'La descripción es muy larga (máximo 500 caracteres)'
+            });
+        }
+        const lim = Number.parseInt(limite, 10);
+        if (!Number.isInteger(lim) || lim < 1 || lim > 20) {
+            return res.status(400).json({
+                success: false,
+                error: 'El campo "limite" debe ser un entero entre 1 y 20'
+            });
+        }
+
+        const resultado = await iaService.busquedaSemantica(descripcion.trim(), lim);
+        if (!resultado.success) {
+            return res.status(resultado.status || 500).json({ success: false, error: resultado.error });
+        }
+        return res.json({ success: true, data: resultado.data });
+    } catch (error) {
+        console.error('❌ Error en /api/ia/busqueda-semantica:', error.message);
+        return res.status(500).json({ success: false, error: 'Error procesando tu solicitud' });
+    }
+});
+
+/**
  * GET /api/ia/health
  * Verificar que servicio de IA está disponible
  */

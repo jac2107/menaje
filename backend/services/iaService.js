@@ -89,7 +89,38 @@ async function verificarIA() {
     }
 }
 
+/**
+ * OPCION 2: reenvia una descripcion libre a FastAPI para la busqueda semantica
+ */
+async function busquedaSemantica(descripcion, limite) {
+    try {
+        const response = await axios.post(
+            `${PYTHON_IA_URL}/busqueda-semantica`,
+            { descripcion, limite },
+            {
+                timeout: 30000, // la primera peticion carga el modelo de embeddings
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-IA-Token': IA_SERVICE_TOKEN
+                }
+            }
+        );
+        return { success: true, data: response.data };
+    } catch (error) {
+        console.error('❌ Error en busqueda semantica:', error.message);
+        if (error.code === 'ECONNREFUSED') {
+            return { success: false, status: 503, error: 'No se pudo conectar al servicio de IA. Intenta de nuevo.' };
+        }
+        const status = error.response?.status;
+        if (status >= 400 && status < 500) {
+            return { success: false, status: 400, error: error.response.data?.detail || 'Solicitud no válida' };
+        }
+        return { success: false, status: 503, error: 'La búsqueda no está disponible en este momento.' };
+    }
+}
+
 module.exports = {
     chatConIA,
-    verificarIA
+    verificarIA,
+    busquedaSemantica
 };
