@@ -66,13 +66,47 @@ class PruebasRAG(unittest.TestCase):
         rag = main.recuperar_rag(USUARIO, "manteles para casamiento")
         self.assertTrue(rag["productos"])
         self.assertTrue(all("Mantel" in p["nombre"] for p in rag["productos"]))
-        self.assertTrue(all(p["similitud"] >= main.UMBRAL_SIMILITUD for p in rag["productos"]))
+        self.assertTrue(all(p["similitud"] >= main.RAG_CHAT_UMBRAL_SIMILITUD for p in rag["productos"]))
         self.assertTrue(all(p["stock_disponible"] > 0 for p in rag["productos"]))
         self.assertIsNotNone(rag["embedding"])
 
-    def test_sin_productos_bajo_el_umbral(self):
-        rag = main.recuperar_rag(USUARIO, "algo para mantener la comida caliente en un buffet")
-        self.assertEqual(rag["productos"], [])
+    # --- consultas coloquiales y fuera del catalogo (umbral propio del chat) ---
+    def test_coloquiales_encuentran_el_producto_esperado(self):
+        casos = {
+            "¿Tienen sillas para una fiesta infantil?": "Silla",
+            "¿Tienen mesas redondas?": "Mesa Redonda",
+            "¿Tienen vasos para tequila?": "Tequilero",
+            "Necesito algo para enfriar las bebidas con hielo": "Cubeta de Hielo",
+            "Necesito vasos para whisky": "Old Fashioned",
+            "¿Tienen camino de mesa rústico?": "Camino de Mesa",
+        }
+        for consulta, esperado in casos.items():
+            with self.subTest(consulta=consulta):
+                nombres = [p["nombre"] for p in main.recuperar_rag(USUARIO, consulta)["productos"]]
+                self.assertTrue(any(esperado in n for n in nombres), nombres)
+
+    # Limitacion conocida (ver python-ml/resultados_umbral_chat.txt): con 0.82 la redaccion
+    # "Algo para mantener la comida caliente en un buffet" (sin "¿Tienen…?") puntua ~0.83 y
+    # cuela un producto poco relacionado. No hay umbral que la excluya sin perder
+    # "¿Tienen sillas para una fiesta infantil?" (~0.835); en el prompt solo es una
+    # sugerencia y Gemini decide, asi que se prefiere no perder el producto correcto.
+    def test_fuera_del_catalogo_devuelve_cero_productos(self):
+        for consulta in (
+            "¿Tienen algo para mantener la comida caliente en un buffet?",
+            "Necesito un proyector y una pantalla para la presentación",
+            "¿Alquilan carpas o toldos para el jardín?",
+        ):
+            with self.subTest(consulta=consulta):
+                self.assertEqual(main.recuperar_rag(USUARIO, consulta)["productos"], [])
+
+    def test_umbral_del_chat_es_distinto_al_de_la_caja_de_busqueda(self):
+        consulta = "¿Tienen sillas para una fiesta infantil?"  # similitud ~0.835
+        self.assertLess(main.RAG_CHAT_UMBRAL_SIMILITUD, main.UMBRAL_SIMILITUD)
+        self.assertEqual(main.UMBRAL_SIMILITUD, 0.85)
+        chat = main.recuperar_rag(USUARIO, consulta)["productos"]
+        caja = main.busqueda_semantica(main.BusquedaSemanticaRequest(descripcion=consulta)).resultados
+        self.assertTrue(chat)
+        self.assertEqual(caja, [])
 
     def test_mensaje_largo_omite_rag(self):
         rag = main.recuperar_rag(USUARIO, "x" * (main.RAG_MENSAJE_MAX_CHARS + 1))
