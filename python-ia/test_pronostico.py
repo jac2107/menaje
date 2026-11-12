@@ -15,10 +15,9 @@ from unittest import mock
 os.environ.setdefault("IA_SERVICE_TOKEN", "token-de-prueba-solo-para-tests-0123456789abcdef")
 os.environ.setdefault("API_GEMINI_KEY", "clave-falsa")
 
-with mock.patch("psycopg2.pool.ThreadedConnectionPool"), \
-        mock.patch("google.generativeai.GenerativeModel"), \
-        mock.patch("google.generativeai.list_models", return_value=[]):
-    import main
+from _importar_main import importar_main
+
+main = importar_main()
 
 from fastapi.testclient import TestClient
 
