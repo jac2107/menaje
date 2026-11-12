@@ -10,3 +10,9 @@ sentence-transformers>=3.0,<6
 
 # Solo para pruebas (starlette TestClient)
 httpx==0.27.2
+
+# Cola de tareas (Fase 4)
+redis>=5,<7
+
+# Solo pruebas
+fakeredis>=2.20
