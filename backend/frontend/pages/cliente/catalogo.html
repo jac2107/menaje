@@ -41,6 +41,21 @@
 
     <!-- VISTA: Productos individuales -->
     <div id="vista-productos">
+      <!-- Búsqueda inteligente (OPCIÓN 2: búsqueda semántica) -->
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+          <div class="form-group" style="margin:0;flex:1;min-width:220px;">
+            <label>Búsqueda inteligente</label>
+            <input class="form-control" id="bi-q" maxlength="500" placeholder="Describe lo que necesitas, p. ej. manteles para casamiento"
+                   onkeydown="if(event.key==='Enter')busquedaInteligente()"/>
+          </div>
+          <button type="button" class="btn btn-primary" id="bi-btn" onclick="busquedaInteligente()">Buscar</button>
+          <button type="button" class="btn btn-sm" id="bi-limpiar" style="display:none" onclick="limpiarBusquedaInteligente()">Limpiar</button>
+        </div>
+        <div id="bi-msg" style="font-size:.85rem;color:var(--text-muted);margin-top:8px;display:none"></div>
+        <div id="bi-grid" style="display:none;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;margin-top:12px;"></div>
+      </div>
+
       <!-- Filtros -->
       <div class="card" style="margin-bottom:16px;">
         <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
@@ -207,6 +222,83 @@ function renderProductos(prods) {
         : '<span style="color:var(--danger);font-size:.85rem;margin-top:auto">Sin stock</span>'}
     </div>
   `).join('');
+}
+
+// ─── Búsqueda inteligente (OPCIÓN 2) ─────────────────────────────────────
+let biResultados = [];
+
+function biEsc(t) {
+  return String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function busquedaInteligente() {
+  const q = document.getElementById('bi-q').value.trim();
+  const msg = document.getElementById('bi-msg');
+  const btn = document.getElementById('bi-btn');
+  if (q.length < 2) return toast('Escribe al menos 2 caracteres', 'warn');
+  btn.disabled = true;
+  msg.style.display = '';
+  msg.textContent = 'Buscando...';
+  try {
+    const r = await apiFetch('/ia/busqueda-semantica', {
+      method: 'POST',
+      body: JSON.stringify({ descripcion: q, limite: 6 })
+    });
+    biResultados = r.data.resultados;
+    renderBusquedaInteligente();
+  } catch (e) {
+    biResultados = [];
+    document.getElementById('bi-grid').style.display = 'none';
+    msg.textContent = e.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderBusquedaInteligente() {
+  const grid = document.getElementById('bi-grid');
+  const msg = document.getElementById('bi-msg');
+  document.getElementById('bi-limpiar').style.display = '';
+  if (!biResultados.length) {
+    grid.style.display = 'none';
+    msg.textContent = 'No encontramos productos parecidos a tu descripción. Prueba con otras palabras o usa los filtros del catálogo.';
+    return;
+  }
+  msg.textContent = `${biResultados.length} producto(s) ordenados por similitud:`;
+  grid.style.display = 'grid';
+  grid.innerHTML = biResultados.map(p => `
+    <div class="card card-product" style="padding:16px;display:flex;flex-direction:column;">
+      ${p.foto_url ? `<img src="${biEsc(p.foto_url)}" style="width:100%;height:140px;object-fit:cover;border-radius:8px;margin-bottom:12px;" />` : ''}
+      <div style="font-weight:700;margin-bottom:4px">${biEsc(p.nombre)}</div>
+      <div style="font-size:.8rem;color:var(--text-muted);margin-bottom:4px">${biEsc(p.categoria)}</div>
+      <div style="font-size:.8rem;margin-bottom:8px">Similitud: <strong>${Math.round(p.similitud * 100)}%</strong></div>
+      <div style="font-size:1.1rem;font-weight:700;color:var(--accent);margin-bottom:4px">${sol(p.precio_unidad)}<span style="font-size:.75rem;font-weight:400;color:var(--text-muted)"> / unidad</span></div>
+      <div style="font-size:.8rem;margin-bottom:12px">Disponible: <strong>${p.stock_disponible}</strong></div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:auto">
+        <input type="number" id="bi-qty-${p.id}" min="1" max="${p.stock_disponible}" value="1" class="form-control" style="width:70px;padding:6px;" />
+        <button class="btn btn-primary btn-sm" onclick="agregarDesdeBusqueda(${p.id})">+ Añadir</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function agregarDesdeBusqueda(id) {
+  const p = biResultados.find(x => x.id === id);
+  if (!p) return;
+  const qty = parseInt(document.getElementById(`bi-qty-${id}`).value) || 1;
+  const existente = carrito.find(x => x.producto_id === id);
+  if (qty < 1 || (existente?.cantidad || 0) + qty > p.stock_disponible) return toast('No hay suficiente stock', 'warn');
+  agregarItemAlCarrito(id, p.nombre, p.precio_unidad, qty);
+  actualizarCarritoUI();
+  toast(`${p.nombre} añadido al carrito`);
+}
+
+function limpiarBusquedaInteligente() {
+  biResultados = [];
+  document.getElementById('bi-q').value = '';
+  document.getElementById('bi-msg').style.display = 'none';
+  document.getElementById('bi-grid').style.display = 'none';
+  document.getElementById('bi-limpiar').style.display = 'none';
 }
 
 function agregarItemAlCarrito(producto_id, nombre, precio_unidad, cantidad) {
