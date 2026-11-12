@@ -234,6 +234,10 @@ EMBEDDING_MODEL = os.getenv(
 )
 # Los modelos e5 exigen prefijo "query: " en la consulta (y "passage: " en los documentos).
 PREFIJO_CONSULTA = "query: " if "e5" in EMBEDDING_MODEL else ""
+# Similitud de coseno minima (0-1) para devolver un producto. 0.85 esta calibrado para
+# multilingual-e5-small, cuyas similitudes se concentran en 0.8-0.9; si se cambia de
+# modelo hay que recalibrarlo.
+UMBRAL_SIMILITUD = float(os.getenv("BUSQUEDA_UMBRAL_SIMILITUD", "0.85"))
 _modelo_embeddings = None
 _modelo_lock = threading.Lock()
 
@@ -567,7 +571,8 @@ def chat(request: ChatRequest) -> ChatResponse:
 def busqueda_semantica(request: BusquedaSemanticaRequest) -> BusquedaSemanticaResponse:
     """
     Devuelve los productos activos con stock disponible mas cercanos (similitud de
-    coseno sobre productos.embedding) a una descripcion libre, de mayor a menor.
+    coseno sobre productos.embedding) a una descripcion libre, de mayor a menor,
+    descartando los que no llegan a UMBRAL_SIMILITUD (puede devolver lista vacia).
     Stock disponible = stock_total - stock_baja, igual que el contexto del chat.
     """
     descripcion = request.descripcion.strip()
@@ -600,10 +605,11 @@ def busqueda_semantica(request: BusquedaSemanticaRequest) -> BusquedaSemanticaRe
                 WHERE p.activo = TRUE
                   AND (p.stock_total - p.stock_baja) > 0
                   AND p.embedding IS NOT NULL
+                  AND (1 - (p.embedding <=> %s::vector)) >= %s
                 ORDER BY p.embedding <=> %s::vector
                 LIMIT %s
                 """,
-                (literal, literal, request.limite),
+                (literal, literal, UMBRAL_SIMILITUD, literal, request.limite),
             )
             filas = [dict(f) for f in cur.fetchall()]
     except psycopg2.Error as error:
