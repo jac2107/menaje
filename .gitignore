@@ -21,3 +21,5 @@ python-ml/__pycache__/
 python-ml/mlruns/
 python-ml/mlflow.db
 python-ml/mlartifacts/
+
+**/__pycache__/
