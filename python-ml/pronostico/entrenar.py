@@ -202,7 +202,8 @@ def main() -> None:
             json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
         baseline = {str(m): dict(zip(CATEGORIAS, map(float, tab_mes.get(m, glob)))) for m in range(1, 13)}
         (a.destino / "baseline.json").write_text(json.dumps(
-            {"datos": "SINTETICOS", "promedio_por_mes": baseline},
+            {"datos": "SINTETICOS", "promedio_por_mes": baseline,
+             "error_validacion_mae": dict(zip(CATEGORIAS, base["val"]["mae_por_categoria"]))},
             indent=2, ensure_ascii=False), encoding="utf-8")
         mlflow.log_artifacts(str(a.destino), artifact_path="paquete_servicio")
 
