@@ -16,7 +16,10 @@ import psycopg
 from pgvector.psycopg import register_vector
 from sentence_transformers import SentenceTransformer
 
-MODEL = os.getenv("EMBEDDING_MODEL", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+# e5-small: 384 dims, multilingue, mucho mejor que paraphrase-MiniLM en consulta corta -> producto.
+# Los modelos e5 exigen prefijos: "passage: " en documentos y "query: " en consultas.
+MODEL = os.getenv("EMBEDDING_MODEL", "intfloat/multilingual-e5-small")
+PREFIJO_DOC = "passage: " if "e5" in MODEL else ""
 DSN = (
     f"host={os.getenv('DB_HOST', 'localhost')} port={os.getenv('DB_PORT', '5433')} "
     f"dbname={os.getenv('DB_NAME', 'menaje_db')} user={os.getenv('DB_USER', 'postgres')} "
@@ -46,7 +49,7 @@ def main() -> None:
             print("Nada que procesar.")
             return
         vecs = SentenceTransformer(MODEL).encode(
-            [texto_producto(n, d, c) for _, n, d, c in filas], normalize_embeddings=True
+            [PREFIJO_DOC + texto_producto(n, d, c) for _, n, d, c in filas], normalize_embeddings=True
         )
         with conn.cursor() as cur:
             cur.executemany(
