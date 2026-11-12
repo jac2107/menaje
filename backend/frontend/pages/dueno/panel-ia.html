@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Panel IA — Menaje</title>
+  <link rel="stylesheet" href="/assets/css/main.css"/>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-brand" style="display:flex;align-items:center;gap:10px"><img src="/assets/img/logo.png" alt="Menaje" width="28" height="28" style="object-fit:contain;flex:none"><span>Menaje</span></div>
+    <a href="/pages/dueno/mi-cuenta.html" class="sidebar-user" style="display:flex;align-items:center;gap:11px;text-decoration:none;color:inherit;cursor:pointer"><div id="sidebar-user-avatar" style="width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#36ada3,#2f578a);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:#fff;flex:none"></div><div style="min-width:0"><strong id="sidebar-user-name" style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></strong><span id="sidebar-user-rol"></span></div></a>
+    <nav>
+      <a href="/pages/dueno/dashboard.html"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.6"></rect><rect x="14" y="3" width="7" height="7" rx="1.6"></rect><rect x="3" y="14" width="7" height="7" rx="1.6"></rect><rect x="14" y="14" width="7" height="7" rx="1.6"></rect></svg></span>Dashboard</a>
+      <a href="/pages/dueno/alquileres.html"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="12" height="17" rx="2.2"></rect><path d="M9 4V3.2A1.2 1.2 0 0 1 10.2 2h3.6A1.2 1.2 0 0 1 15 3.2V4"></path><path d="M9 10h6M9 14h6M9 18h4"></path></svg></span>Alquileres</a>
+      <a href="/pages/dueno/inventario.html"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5z"></path><path d="M3 8l9 5 9-5M12 13v8"></path></svg></span>Inventario</a>
+      <a href="/pages/dueno/usuarios.html"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1"></path><circle cx="9.5" cy="8" r="3.2"></circle><path d="M21 19v-1a4 4 0 0 0-3-3.8M16.5 5.2a3.2 3.2 0 0 1 0 5.6"></path></svg></span>Usuarios</a>
+      <a href="/pages/dueno/descuentos.html"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"></line><circle cx="7" cy="7" r="2.3"></circle><circle cx="17" cy="17" r="2.3"></circle></svg></span>Descuentos</a>
+      <a href="/pages/dueno/reportes.html"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="20" x2="6" y2="12"></line><line x1="12" y1="20" x2="12" y2="5"></line><line x1="18" y1="20" x2="18" y2="9"></line></svg></span>Reportes</a>
+      <a href="/pages/dueno/panel-ia.html" class="active"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2.4"></rect><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"></path><circle cx="12" cy="12" r="2"></circle></svg></span>Panel IA</a>
+      <a href="/pages/dueno/configuracion.html"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="8" x2="20" y2="8"></line><line x1="4" y1="16" x2="20" y2="16"></line><circle cx="9" cy="8" r="2.4"></circle><circle cx="15" cy="16" r="2.4"></circle></svg></span>Configuración</a>
+    </nav>
+    <div id="sidebar-alertas"></div>
+    <div class="sidebar-footer"><button onclick="logout()" style="display:flex;align-items:center;justify-content:center;gap:8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>Cerrar sesión</button></div>
+  </aside>
+
+    <main class="main-content">
+    <div class="topbar">
+      <button id="menu-toggle" class="btn-menu-toggle">☰</button>
+      <h1>Panel IA</h1>
+    </div>
+
+    <!-- Aviso de modo degradado (visible solo si el modelo o la búsqueda vectorial fallan) -->
+    <div id="aviso-degradado" class="info-box" style="display:none;border-left:4px solid var(--warn)">
+      <strong>⚠ El sistema funciona en modo degradado.</strong>
+      <span id="aviso-degradado-detalle"></span>
+      <div style="margin-top:4px;color:var(--text-muted)">El chat y el catálogo siguen funcionando como siempre; solo se pierden las funciones que dependen de la pieza caída.</div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Estado del sistema <span id="estado-general" class="badge" style="margin-left:8px"></span></div>
+        <div id="estado-lista"><p style="color:var(--text-muted)">Consultando...</p></div>
+        <p style="color:var(--text-muted);font-size:12px;margin-top:10px">Se actualiza cada 15 s. <span id="estado-hora"></span></p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Pronóstico de demanda por categoría</div>
+        <p style="margin-bottom:10px"><span class="badge badge-pendiente">Datos SINTÉTICOS</span>
+          <span style="color:var(--text-muted);font-size:12px">El modelo se entrenó con eventos simulados, no con alquileres reales.</span></p>
+        <form id="form-pronostico" onsubmit="pronosticar(event)">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="p-tipo">Tipo de evento</label>
+              <select id="p-tipo" class="form-control">
+                <option value="boda">Boda</option>
+                <option value="quinceanos">Quinceaños</option>
+                <option value="bautizo">Bautizo</option>
+                <option value="cumpleanos">Cumpleaños</option>
+                <option value="graduacion">Graduación</option>
+                <option value="corporativo">Corporativo</option>
+                <option value="baby_shower">Baby shower</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="p-mes">Mes</label>
+              <select id="p-mes" class="form-control"></select>
+            </div>
+            <div class="form-group">
+              <label for="p-asistentes">Asistentes</label>
+              <input id="p-asistentes" type="number" class="form-control" min="1" max="5000" step="1" value="100" required/>
+            </div>
+          </div>
+          <button id="btn-pronosticar" class="btn btn-primary" type="submit">Calcular demanda</button>
+        </form>
+        <div id="pronostico-resultado" style="margin-top:14px"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Tareas en segundo plano</div>
+      <p style="color:var(--text-muted);margin-bottom:12px">Se ejecutan en una cola (Redis) procesada por un worker; puedes cerrar esta página mientras corren.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+        <button class="btn btn-primary" id="btn-reentrenar" onclick="lanzar('reentrenar_pronostico')">Reentrenar modelo de pronóstico</button>
+        <button class="btn btn-outline" id="btn-embeddings" onclick="lanzar('regenerar_embeddings')">Regenerar embeddings</button>
+      </div>
+      <div id="tareas-lista"><p style="color:var(--text-muted)">Cargando...</p></div>
+    </div>
+  </main>
+</div>
+
+<script src="/assets/js/app.js"></script>
+<script>
+if (!Auth.requireAuth('dueno')) throw new Error('no auth');
+
+// Todo lo que viene de la API se inserta escapado (el detalle de las tareas es salida de procesos).
+function esc(v) {
+  return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+const NOMBRES_COMPONENTE = {
+  pronostico: 'Modelo de pronóstico',
+  busqueda_vectorial: 'Búsqueda vectorial',
+  redis: 'Redis (cola de tareas)',
+  gemini: 'Gemini (chat)',
+  ia_servicio: 'Servicio de IA (FastAPI)'
+};
+const NOMBRES_TAREA = { reentrenar_pronostico: 'Reentrenar pronóstico', regenerar_embeddings: 'Regenerar embeddings' };
+const ETIQUETA_ESTADO = { ok: 'Operativo', degradado: 'Degradado', caido: 'Caído' };
+const ETIQUETA_TAREA = { pendiente: 'Pendiente', en_curso: 'En curso', completada: 'Completada', error: 'Con error' };
+const COLOR_ESTADO = { ok: 'var(--success)', degradado: 'var(--warn)', caido: 'var(--danger)' };
+const COLOR_TAREA = { pendiente: 'var(--warn)', en_curso: 'var(--warn)', completada: 'var(--success)', error: 'var(--danger)' };
+const NOMBRES_MES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+const selMes = document.getElementById('p-mes');
+NOMBRES_MES.forEach((n, i) => selMes.add(new Option(n, i + 1)));
+selMes.value = new Date().getMonth() + 1;
+
+function pastilla(texto, color) {
+  return `<span class="badge" style="background:transparent;border:1px solid ${color};color:${color}">${esc(texto)}</span>`;
+}
+
+// ─── Estado del sistema ──────────────────────────────────────────────────
+async function cargarEstado() {
+  try {
+    const { data } = await apiFetch('/ia/estado');
+    document.getElementById('estado-lista').innerHTML = Object.entries(data.componentes).map(([k, c]) => `
+      <div style="display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)">
+        <div><strong>${esc(NOMBRES_COMPONENTE[k] || k)}</strong>
+          <div style="color:var(--text-muted);font-size:12px">${esc(c.detalle)}${c.latencia_ms != null ? ` · ${c.latencia_ms} ms` : ''}</div></div>
+        <div>${pastilla(ETIQUETA_ESTADO[c.estado] || c.estado, COLOR_ESTADO[c.estado] || 'var(--text-muted)')}</div>
+      </div>`).join('');
+    const g = document.getElementById('estado-general');
+    g.textContent = data.estado_general === 'ok' ? 'Todo operativo' : 'Con incidencias';
+    g.style.color = data.estado_general === 'ok' ? 'var(--success)' : 'var(--warn)';
+    document.getElementById('estado-hora').textContent = 'Última consulta: ' + new Date().toLocaleTimeString('es-PE');
+
+    const aviso = document.getElementById('aviso-degradado');
+    aviso.style.display = data.modo_degradado ? 'block' : 'none';
+    if (data.modo_degradado) {
+      const caidos = Object.entries(data.componentes)
+        .filter(([k, c]) => c.estado !== 'ok' && ['pronostico', 'busqueda_vectorial', 'ia_servicio'].includes(k))
+        .map(([k]) => NOMBRES_COMPONENTE[k]);
+      document.getElementById('aviso-degradado-detalle').textContent = caidos.length ? 'Afectado: ' + caidos.join(', ') + '.' : '';
+    }
+  } catch (e) {
+    document.getElementById('estado-lista').innerHTML = `<p style="color:var(--danger)">${esc(e.message)}</p>`;
+  }
+}
+
+// ─── Pronóstico ──────────────────────────────────────────────────────────
+async function pronosticar(ev) {
+  ev.preventDefault();
+  const btn = document.getElementById('btn-pronosticar');
+  const salida = document.getElementById('pronostico-resultado');
+  const body = {
+    tipo_evento: document.getElementById('p-tipo').value,
+    mes: Number(selMes.value),
+    asistentes: Number(document.getElementById('p-asistentes').value)
+  };
+  if (!Number.isInteger(body.asistentes) || body.asistentes < 1 || body.asistentes > 5000) {
+    return toast('Asistentes debe ser un entero entre 1 y 5000', 'warn');
+  }
+  btn.disabled = true;
+  salida.innerHTML = '<p style="color:var(--text-muted)">Calculando...</p>';
+  try {
+    const { data } = await apiFetch('/ia/pronostico-demanda', { method: 'POST', body: JSON.stringify(body) });
+    const degradado = data.modo === 'degradado';
+    salida.innerHTML = `
+      <p>${degradado ? pastilla('Modo degradado', 'var(--warn)') : pastilla('Modelo', 'var(--success)')}
+         <span class="badge badge-pendiente">Datos ${esc(data.datos_entrenamiento)}</span></p>
+      ${data.aviso ? `<p style="color:var(--warn);margin:8px 0">${esc(data.aviso)}</p>` : ''}
+      <div class="table-wrap"><table>
+        <thead><tr><th>Categoría</th><th>Demanda estimada</th><th>Confianza (error medio de validación)</th></tr></thead>
+        <tbody>${data.demanda.map(d => `<tr>
+          <td>${esc(d.categoria)}</td>
+          <td><strong>${esc(d.cantidad_estimada)}</strong> unid.</td>
+          <td>${d.error_validacion_mae != null ? '± ' + esc(d.error_validacion_mae) + ' unid.' : '—'}</td></tr>`).join('')}
+        </tbody></table></div>
+      <p style="color:var(--text-muted);font-size:12px;margin-top:6px">Un error menor indica una estimación más fiable. Las cifras salen de datos simulados: úsalas como orientación, no como cifra comprometida.</p>`;
+  } catch (e) {
+    salida.innerHTML = `<p style="color:var(--danger)">${esc(e.message)}</p>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ─── Tareas ──────────────────────────────────────────────────────────────
+let temporizadorTareas = null;
+
+async function cargarTareas() {
+  try {
+    const { data } = await apiFetch('/ia/tareas');
+    const activas = data.some(t => t.estado === 'pendiente' || t.estado === 'en_curso');
+    document.getElementById('btn-reentrenar').disabled = data.some(t => t.tipo === 'reentrenar_pronostico' && ['pendiente', 'en_curso'].includes(t.estado));
+    document.getElementById('btn-embeddings').disabled = data.some(t => t.tipo === 'regenerar_embeddings' && ['pendiente', 'en_curso'].includes(t.estado));
+    document.getElementById('tareas-lista').innerHTML = data.length ? data.slice(0, 6).map(t => `
+      <div style="padding:8px 0;border-bottom:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;gap:12px">
+          <strong>${esc(NOMBRES_TAREA[t.tipo] || t.tipo)}</strong>
+          ${pastilla(ETIQUETA_TAREA[t.estado] || t.estado, COLOR_TAREA[t.estado] || 'var(--text-muted)')}
+        </div>
+        <div style="color:var(--text-muted);font-size:12px">Creada: ${esc(new Date(t.creada).toLocaleString('es-PE'))}${t.fin ? ' · Fin: ' + esc(new Date(t.fin).toLocaleString('es-PE')) : ''}</div>
+        ${t.estado === 'error' && t.detalle ? `<pre style="white-space:pre-wrap;font-size:11px;color:var(--danger);margin-top:4px;max-height:120px;overflow:auto">${esc(t.detalle)}</pre>` : ''}
+      </div>`).join('') : '<p style="color:var(--text-muted)">Aún no se ha lanzado ninguna tarea.</p>';
+    // Consulta frecuente solo mientras haya algo corriendo
+    clearTimeout(temporizadorTareas);
+    temporizadorTareas = setTimeout(cargarTareas, activas ? 3000 : 15000);
+  } catch (e) {
+    document.getElementById('tareas-lista').innerHTML = `<p style="color:var(--danger)">${esc(e.message)}</p>`;
+    clearTimeout(temporizadorTareas);
+    temporizadorTareas = setTimeout(cargarTareas, 15000);
+  }
+}
+
+async function lanzar(tipo) {
+  if (!confirm(`¿Lanzar "${NOMBRES_TAREA[tipo]}"? Se ejecuta en segundo plano.`)) return;
+  try {
+    await apiFetch('/ia/tareas', { method: 'POST', body: JSON.stringify({ tipo }) });
+    toast('Tarea encolada');
+    cargarTareas();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+cargarEstado();
+setInterval(cargarEstado, 15000);
+cargarTareas();
+</script>
+</body>
+</html>
