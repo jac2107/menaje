@@ -119,8 +119,40 @@ async function busquedaSemantica(descripcion, limite) {
     }
 }
 
+/**
+ * OPCION 2 (capa 9): reenvia tipo de evento, mes y asistentes a FastAPI para el
+ * pronostico de demanda por categoria.
+ */
+async function pronosticoDemanda(tipoEvento, mes, asistentes) {
+    try {
+        const response = await axios.post(
+            `${PYTHON_IA_URL}/pronostico-demanda`,
+            { tipo_evento: tipoEvento, mes, asistentes },
+            {
+                timeout: 15000,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-IA-Token': IA_SERVICE_TOKEN
+                }
+            }
+        );
+        return { success: true, data: response.data };
+    } catch (error) {
+        console.error('❌ Error en pronostico de demanda:', error.message);
+        if (error.code === 'ECONNREFUSED') {
+            return { success: false, status: 503, error: 'No se pudo conectar al servicio de IA. Intenta de nuevo.' };
+        }
+        const status = error.response?.status;
+        if (status === 422) {
+            return { success: false, status: 400, error: 'Datos del evento no válidos para el pronóstico' };
+        }
+        return { success: false, status: 503, error: 'El pronóstico no está disponible en este momento.' };
+    }
+}
+
 module.exports = {
     chatConIA,
     verificarIA,
-    busquedaSemantica
+    busquedaSemantica,
+    pronosticoDemanda
 };

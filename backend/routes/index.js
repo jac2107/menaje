@@ -140,6 +140,42 @@ router.post('/ia/busqueda-semantica', autenticar, iaRateLimiter, async (req, res
 });
 
 /**
+ * POST /api/ia/pronostico-demanda   (OPCION 2, capa 9)
+ * Demanda estimada por categoria para un evento (modelo entrenado con datos
+ * SINTETICOS). Solo administrador (rol "dueno").
+ * Body: { tipo_evento: string, mes: 1-12, asistentes: 1-5000 }
+ */
+const TIPOS_EVENTO = ['boda', 'quinceanos', 'bautizo', 'cumpleanos', 'graduacion', 'corporativo', 'baby_shower'];
+
+router.post('/ia/pronostico-demanda', autenticar, autorizar('dueno'), iaRateLimiter, async (req, res) => {
+    try {
+        const { tipo_evento, mes, asistentes } = req.body;
+
+        if (!TIPOS_EVENTO.includes(tipo_evento)) {
+            return res.status(400).json({
+                success: false,
+                error: `"tipo_evento" debe ser uno de: ${TIPOS_EVENTO.join(', ')}`
+            });
+        }
+        if (!Number.isInteger(mes) || mes < 1 || mes > 12) {
+            return res.status(400).json({ success: false, error: '"mes" debe ser un entero entre 1 y 12' });
+        }
+        if (!Number.isInteger(asistentes) || asistentes < 1 || asistentes > 5000) {
+            return res.status(400).json({ success: false, error: '"asistentes" debe ser un entero entre 1 y 5000' });
+        }
+
+        const resultado = await iaService.pronosticoDemanda(tipo_evento, mes, asistentes);
+        if (!resultado.success) {
+            return res.status(resultado.status || 500).json({ success: false, error: resultado.error });
+        }
+        return res.json({ success: true, data: resultado.data });
+    } catch (error) {
+        console.error('❌ Error en /api/ia/pronostico-demanda:', error.message);
+        return res.status(500).json({ success: false, error: 'Error procesando tu solicitud' });
+    }
+});
+
+/**
  * GET /api/ia/health
  * Verificar que servicio de IA está disponible
  */
