@@ -90,3 +90,32 @@ def mtime_modelo() -> Optional[float]:
         return (directorio_modelo() / "meta.json").stat().st_mtime
     except OSError:
         return None
+
+
+def version_modelo(meta: Optional[Dict[str, Any]]) -> str:
+    """Identificador del modelo que respondio (se guarda en la tabla pronosticos)."""
+    if not meta:
+        return "degradado"
+    return str(meta.get("version_modelo") or str(meta.get("mlflow_run_id", ""))[:8] or "sin-version")
+
+
+def leer_meta() -> Dict[str, Any]:
+    """meta.json tal cual (vacio si no esta)."""
+    try:
+        return json.loads((directorio_modelo() / "meta.json").read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def resumen_entrenamiento() -> Dict[str, Any]:
+    """Datos del ultimo entrenamiento para el panel: version, fecha y proporcion de cada tipo de dato."""
+    meta = leer_meta()
+    comp = meta.get("composicion_datos") or {}
+    total = comp.get("total") or 0
+    return {
+        "datos": meta.get("datos", "SINTETICOS"),
+        "version_modelo": version_modelo(meta) if meta else None,
+        "entrenado_en": meta.get("entrenado_en"),
+        "composicion": {k: comp.get(k, 0) for k in ("sintetico", "ejemplo", "real")} | {"total": total},
+        "proporcion": {k: round(comp.get(k, 0) / total, 4) for k in ("sintetico", "ejemplo", "real")} if total else {},
+    }

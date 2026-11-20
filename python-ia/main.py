@@ -9,6 +9,7 @@ import os
 import secrets
 import sys
 import concurrent.futures
+import json
 import threading
 import time
 import uuid
@@ -33,6 +34,7 @@ from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
+import deriva
 import pronostico
 import tareas
 
@@ -262,6 +264,10 @@ class EstadoResponse(BaseModel):
     modo_degradado: bool
     componentes: Dict[str, ComponenteEstado]
     datos_pronostico: str = "SINTETICOS"
+    entrenamiento: Optional[Dict[str, Any]] = Field(
+        default=None, description="Ultimo entrenamiento: version, fecha y proporcion de datos sinteticos/ejemplo/reales.")
+    deriva: Optional[Dict[str, Any]] = Field(
+        default=None, description="Semaforo de concept drift: normal | atencion | deriva | sin_datos | sin_modelo.")
     model_config = ConfigDict(json_schema_extra={"examples": [{
         "estado_general": "degradado", "modo_degradado": True, "datos_pronostico": "SINTETICOS",
         "componentes": {
@@ -295,6 +301,7 @@ class PronosticoResponse(BaseModel):
     modo: Literal["modelo", "degradado"]
     aviso: Optional[str] = Field(default=None, description="Presente en modo degradado o si se extrapola.")
     datos_entrenamiento: str = "SINTETICOS"
+    version_modelo: Optional[str] = None
     demanda: List[DemandaCategoria]
     model_config = ConfigDict(json_schema_extra={"examples": [{
         "modo": "modelo", "aviso": None, "datos_entrenamiento": "SINTETICOS",
@@ -900,6 +907,22 @@ def obtener_modelo_pronostico():
     return _modelo_pronostico
 
 
+def guardar_pronostico(request: "PronosticoRequest", respuesta: "PronosticoResponse") -> None:
+    """Registra el pronostico en la tabla pronosticos. Si falla, solo se avisa en el log:
+    el cliente recibe su pronostico igual."""
+    try:
+        with obtener_conexion(commit=True) as conn, conn.cursor() as cur:
+            cur.execute(
+                """INSERT INTO pronosticos (tipo_evento, mes, asistentes, modo, version_modelo, salida)
+                   VALUES (%s, %s, %s, %s, %s, %s)""",
+                (request.tipo_evento, request.mes, request.asistentes, respuesta.modo,
+                 respuesta.version_modelo or "desconocida",
+                 json.dumps({d.categoria: d.cantidad_estimada for d in respuesta.demanda})),
+            )
+    except Exception as error:
+        logger.warning("Pronostico: no se pudo guardar en la tabla pronosticos (%r)", error)
+
+
 @app.post(
     "/pronostico-demanda",
     response_model=PronosticoResponse,
@@ -919,6 +942,12 @@ def obtener_modelo_pronostico():
     },
 )
 def pronostico_demanda(request: PronosticoRequest) -> PronosticoResponse:
+    respuesta = _calcular_pronostico(request)
+    guardar_pronostico(request, respuesta)
+    return respuesta
+
+
+def _calcular_pronostico(request: PronosticoRequest) -> PronosticoResponse:
     """
     Demanda estimada por categoria de producto para un evento. Usa la red entrenada
     con datos SINTETICOS; si no carga, devuelve el promedio historico por categoria y
@@ -937,6 +966,8 @@ def pronostico_demanda(request: PronosticoRequest) -> PronosticoResponse:
             return PronosticoResponse(
                 modo="modelo",
                 aviso=aviso,
+                datos_entrenamiento=str(modelo.meta.get("datos", "SINTETICOS")),
+                version_modelo=pronostico.version_modelo(modelo.meta),
                 demanda=[
                     DemandaCategoria(
                         categoria=c, cantidad_estimada=round(v),
@@ -954,6 +985,7 @@ def pronostico_demanda(request: PronosticoRequest) -> PronosticoResponse:
     errores = pronostico.cargar_error_baseline()
     return PronosticoResponse(
         modo="degradado",
+        version_modelo="degradado",
         aviso=("Modo degradado: el modelo no esta disponible; se muestra el promedio "
                "historico por categoria y mes, sin considerar tipo de evento ni asistentes."),
         demanda=[
@@ -1116,6 +1148,18 @@ def _estado_gemini() -> ComponenteEstado:
     ),
     responses={401: R401, 403: R403},
 )
+def _estado_deriva() -> Dict[str, Any]:
+    """Semaforo de deriva; si la BD falla, 'sin_datos' con el motivo (nunca rompe /estado)."""
+    modelo = obtener_modelo_pronostico()
+    try:
+        with obtener_conexion() as conn:
+            filas = deriva.consultar_recientes(conn) if modelo is not None else []
+        return deriva.evaluar(modelo, filas)
+    except Exception as error:
+        logger.warning("Deriva: no se pudo evaluar (%r)", error)
+        return {"semaforo": "sin_datos", "mensaje": "No se pudo consultar los alquileres recientes."}
+
+
 def estado_sistema() -> EstadoResponse:
     """
     Consulta cada pieza. El modo degradado se declara cuando falla el modelo de
@@ -1133,6 +1177,9 @@ def estado_sistema() -> EstadoResponse:
         estado_general="ok" if todo_ok else "degradado",
         modo_degradado=degradado,
         componentes=componentes,
+        datos_pronostico=str(pronostico.leer_meta().get("datos", "SINTETICOS")),
+        entrenamiento=pronostico.resumen_entrenamiento(),
+        deriva=_estado_deriva(),
     )
 
 
