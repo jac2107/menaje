@@ -12,6 +12,7 @@ const reportCtrl    = require('../controllers/reportesController');
 const paqCtrl       = require('../controllers/paquetesController');
 const iaService     = require('../services/iaService');
 const iaRateLimiter = require('../middleware/rateLimitIA');
+const busquedaRateLimiter = require('../middleware/rateLimitBusqueda');
 
 // Máximo 10 intentos por IP cada 15 minutos en rutas de autenticación
 const authLimiter = rateLimit({
@@ -105,7 +106,7 @@ router.post('/ia/chat', autenticar, iaRateLimiter, async (req, res) => {
  * Reenvia la descripcion a FastAPI; devuelve productos con stock por similitud.
  * Requiere: JWT. Body: { descripcion: string, limite?: 1-20 }
  */
-router.post('/ia/busqueda-semantica', autenticar, iaRateLimiter, async (req, res) => {
+router.post('/ia/busqueda-semantica', autenticar, busquedaRateLimiter, async (req, res) => {
     try {
         const { descripcion, limite = 5 } = req.body;
 
@@ -275,6 +276,7 @@ router.get('/paquetes/catalogo',    autenticar, paqCtrl.getCatalogo);
 router.get('/productos',            autenticar, autorizar('trabajador','dueno'), prodCtrl.getInventario);
 // CORREGIDO (CU-12): Se agregó el rol 'trabajador' para permitirle registrar productos
 router.post('/productos',           autenticar, autorizar('trabajador','dueno'), prodCtrl.crearProducto);
+router.patch('/productos/:id',      autenticar, autorizar('dueno'), prodCtrl.editarProducto);
 router.patch('/productos/:id/stock',autenticar, autorizar('dueno'), prodCtrl.ajustarStock);
 
 // ── ALQUILERES ────────────────────────────────────────────────────────────
