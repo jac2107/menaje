@@ -8,6 +8,8 @@ cuantos productos irrelevantes se cuelan. Las consultas fuera del catalogo
   DB_PASSWORD=... python medir_umbral_chat.py
 """
 import os
+
+import entorno  # noqa: F401  (carga python-ml/.env)
 import re
 import sys
 

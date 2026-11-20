@@ -1,6 +1,7 @@
 # Infraestructura local de la Opcion 2 (pgvector + Redis).
 # Credenciales: se leen de un .env en la raiz (ignorado por Git); los
-# valores por defecto son solo para desarrollo local.
+# POSTGRES_PASSWORD es obligatoria (sin valor por defecto). Cambiarla en un volumen
+# ya creado exige ademas ALTER USER (la variable solo actua al inicializar pgdata).
 services:
   postgres:
     image: pgvector/pgvector:pg16
@@ -8,7 +9,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD en el .env de la raiz}
       POSTGRES_DB: ${POSTGRES_DB:-menaje_db}
     ports:
       - "5433:5432"

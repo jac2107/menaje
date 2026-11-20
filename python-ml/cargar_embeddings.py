@@ -13,6 +13,8 @@ Conexion por variables de entorno DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD
 import argparse
 import os
 
+import entorno  # noqa: F401  (carga python-ml/.env)
+
 import psycopg
 from pgvector.psycopg import register_vector
 from sentence_transformers import SentenceTransformer

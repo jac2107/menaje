@@ -16,6 +16,8 @@ menaje_db); es un juicio humano y pequeno (15 consultas), no un benchmark.
   DB_PASSWORD=... python medir_precision_busqueda.py     (escribe resultados_precision_busqueda.txt)
 """
 import os
+
+import entorno  # noqa: F401  (carga python-ml/.env)
 import sys
 from pathlib import Path
 

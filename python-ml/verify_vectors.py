@@ -1,6 +1,8 @@
 """Verifica MiniLM (384 dims) + pgvector. Crea y borra una tabla de prueba."""
 import os
 
+import entorno  # noqa: F401  (carga python-ml/.env)
+
 import psycopg
 from pgvector.psycopg import register_vector
 from sentence_transformers import SentenceTransformer
