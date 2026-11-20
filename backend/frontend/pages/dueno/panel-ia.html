@@ -46,8 +46,8 @@
 
       <div class="card">
         <div class="card-title">Pronóstico de demanda por categoría</div>
-        <p style="margin-bottom:10px"><span class="badge badge-pendiente">Datos SINTÉTICOS</span>
-          <span style="color:var(--text-muted);font-size:12px">El modelo se entrenó con eventos simulados, no con alquileres reales.</span></p>
+        <p style="margin-bottom:10px"><span id="badge-datos" class="badge badge-pendiente">Datos SINTÉTICOS</span>
+          <span id="nota-datos" style="color:var(--text-muted);font-size:12px">El modelo se entrenó con eventos simulados, no con alquileres reales.</span></p>
         <form id="form-pronostico" onsubmit="pronosticar(event)">
           <div class="form-row">
             <div class="form-group">
@@ -75,6 +75,11 @@
         </form>
         <div id="pronostico-resultado" style="margin-top:14px"></div>
       </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Calidad del modelo de pronóstico</div>
+      <div id="calidad-modelo"><p style="color:var(--text-muted)">Consultando...</p></div>
     </div>
 
     <div class="card">
@@ -135,6 +140,8 @@ async function cargarEstado() {
     g.style.color = data.estado_general === 'ok' ? 'var(--success)' : 'var(--warn)';
     document.getElementById('estado-hora').textContent = 'Última consulta: ' + new Date().toLocaleTimeString('es-PE');
 
+    pintarCalidad(data);
+
     const aviso = document.getElementById('aviso-degradado');
     aviso.style.display = data.modo_degradado ? 'block' : 'none';
     if (data.modo_degradado) {
@@ -146,6 +153,56 @@ async function cargarEstado() {
   } catch (e) {
     document.getElementById('estado-lista').innerHTML = `<p style="color:var(--danger)">${esc(e.message)}</p>`;
   }
+}
+
+// ─── Calidad del modelo: datos del último entrenamiento y semáforo de deriva ─────────
+const SEMAFORO = {
+  normal:    { texto: 'Normal',    color: 'var(--success)' },
+  atencion:  { texto: 'Atención',  color: 'var(--warn)' },
+  deriva:    { texto: 'Deriva',    color: 'var(--danger)' },
+  sin_datos: { texto: 'Sin datos suficientes', color: 'var(--text-muted)' },
+  sin_modelo: { texto: 'Sin modelo', color: 'var(--text-muted)' }
+};
+const TIPOS_DATO = [['sintetico', 'Sintéticos'], ['ejemplo', 'De ejemplo'], ['real', 'Reales']];
+const pct = (x) => (100 * x).toFixed(1).replace('.0', '') + ' %';
+
+function pintarCalidad(data) {
+  const cont = document.getElementById('calidad-modelo');
+  const ent = data.entrenamiento, d = data.deriva;
+  if (!ent && !d) { cont.innerHTML = '<p style="color:var(--text-muted)">No disponible (el servicio de IA no responde).</p>'; return; }
+
+  let html = '';
+  if (d) {
+    const s = SEMAFORO[d.semaforo] || { texto: d.semaforo, color: 'var(--text-muted)' };
+    html += `<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+      <span style="width:18px;height:18px;border-radius:50%;background:${s.color};flex:none" aria-hidden="true"></span>
+      <div><strong>Deriva (concept drift): ${esc(s.texto)}</strong>
+        <div style="color:var(--text-muted);font-size:12px">${esc(d.mensaje || '')}</div></div></div>`;
+    if (d.razon != null) {
+      html += `<p style="font-size:13px">Error reciente: <strong>${esc(d.mae_reciente)}</strong> unid. (${esc(d.n_alquileres)} alquileres de los últimos ${esc(d.ventana_dias)} días)
+        frente a <strong>${esc(d.mae_validacion)}</strong> en validación → <strong>×${esc(d.razon)}</strong>.
+        Atención desde ×${esc(d.umbral_atencion)}, deriva desde ×${esc(d.umbral_deriva)}.</p>`;
+    }
+  }
+  if (ent && ent.composicion && ent.composicion.total) {
+    html += `<div style="margin-top:12px"><strong>Datos del último entrenamiento</strong>
+      <span style="color:var(--text-muted);font-size:12px"> · ${esc(ent.composicion.total)} filas${ent.entrenado_en ? ' · ' + esc(new Date(ent.entrenado_en).toLocaleString('es-PE')) : ''}${ent.version_modelo ? ' · versión ' + esc(ent.version_modelo) : ''}</span>
+      <div style="display:flex;height:10px;border-radius:5px;overflow:hidden;margin:8px 0;background:var(--border)" role="img" aria-label="Proporción de cada tipo de dato">
+        ${TIPOS_DATO.map(([k], i) => `<div style="width:${(ent.proporcion[k] || 0) * 100}%;background:${['var(--warn)', 'var(--primary, #2f578a)', 'var(--success)'][i]}"></div>`).join('')}
+      </div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px">
+        ${TIPOS_DATO.map(([k, n]) => `<span>${n}: <strong>${esc(ent.composicion[k] || 0)}</strong> (${pct(ent.proporcion[k] || 0)})</span>`).join('')}
+      </div></div>`;
+  } else if (ent) {
+    html += '<p style="color:var(--text-muted);margin-top:8px">El modelo actual no declara la composición de sus datos (reentrénalo para registrarla).</p>';
+  }
+  cont.innerHTML = html;
+
+  const sint = ent && ent.datos === 'SINTETICOS';
+  document.getElementById('badge-datos').textContent = 'Datos ' + (ent && ent.datos ? ent.datos : 'SINTÉTICOS');
+  document.getElementById('nota-datos').textContent = sint
+    ? 'El modelo se entrenó con eventos simulados, no con alquileres reales.'
+    : 'Mezcla de eventos simulados y alquileres de ejemplo o reales (ver "Calidad del modelo").';
 }
 
 // ─── Pronóstico ──────────────────────────────────────────────────────────
