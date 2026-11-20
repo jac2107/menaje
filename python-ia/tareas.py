@@ -154,7 +154,7 @@ def procesar_embeddings_pendientes(r: Optional["redis.Redis"] = None) -> Optiona
     """Regenera el embedding de los productos pendientes. Devuelve None si no habia ninguno,
     o 'completada' / 'error'. Ante un error los ids vuelven a la cola para reintentar."""
     r = r or obtener_redis()
-    ids = [int(i) for i in (r.spop(CLAVE_EMBEDDINGS_PENDIENTES, LOTE_EMBEDDINGS) or [])]
+    ids = sorted(int(i) for i in (r.spop(CLAVE_EMBEDDINGS_PENDIENTES, LOTE_EMBEDDINGS) or []))
     if not ids:
         return None
     try:

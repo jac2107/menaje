@@ -31,6 +31,10 @@ class PruebasPronostico(unittest.TestCase):
     def setUp(self):
         main._modelo_pronostico = None
         self.client = TestClient(main.app)
+        # Fase 6A: el endpoint guarda cada pronostico en la BD; estas pruebas no deben escribir en ella.
+        parche = mock.patch.object(main, "guardar_pronostico")
+        parche.start()
+        self.addCleanup(parche.stop)
 
     def post(self, cuerpo=CUERPO, headers=CABECERA):
         return self.client.post("/pronostico-demanda", json=cuerpo, headers=headers)
@@ -61,7 +65,9 @@ class PruebasPronostico(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         d = r.json()
         self.assertEqual(d["modo"], "modelo")
-        self.assertEqual(d["datos_entrenamiento"], "SINTETICOS")
+        # Fase 6A: la respuesta declara con que datos se entreno el modelo vigente (SINTETICOS o MIXTOS)
+        self.assertEqual(d["datos_entrenamiento"], main.pronostico.leer_meta()["datos"])
+        self.assertIn(d["datos_entrenamiento"], ("SINTETICOS", "MIXTOS"))
         self.assertEqual([x["categoria"] for x in d["demanda"]], CATEGORIAS)
         for x in d["demanda"]:
             self.assertGreaterEqual(x["cantidad_estimada"], 0)

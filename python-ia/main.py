@@ -1138,16 +1138,6 @@ def _estado_gemini() -> ComponenteEstado:
     return comp.model_copy()
 
 
-@app.get(
-    "/estado", response_model=EstadoResponse, dependencies=[Depends(verificar_token_servicio)],
-    tags=["Opcion 2"], summary="Estado de cada pieza del sistema",
-    description=(
-        "Comprueba el modelo de pronostico, la busqueda vectorial (BD con embeddings), Redis y Gemini "
-        "(solo lista modelos: no genera texto ni gasta tokens; cacheado 60 s). Siempre responde 200; "
-        "una pieza caida se refleja en su `estado` y en `modo_degradado`. **Requiere** `X-IA-Token`."
-    ),
-    responses={401: R401, 403: R403},
-)
 def _estado_deriva() -> Dict[str, Any]:
     """Semaforo de deriva; si la BD falla, 'sin_datos' con el motivo (nunca rompe /estado)."""
     modelo = obtener_modelo_pronostico()
@@ -1160,6 +1150,16 @@ def _estado_deriva() -> Dict[str, Any]:
         return {"semaforo": "sin_datos", "mensaje": "No se pudo consultar los alquileres recientes."}
 
 
+@app.get(
+    "/estado", response_model=EstadoResponse, dependencies=[Depends(verificar_token_servicio)],
+    tags=["Opcion 2"], summary="Estado de cada pieza del sistema",
+    description=(
+        "Comprueba el modelo de pronostico, la busqueda vectorial (BD con embeddings), Redis y Gemini "
+        "(solo lista modelos: no genera texto ni gasta tokens; cacheado 60 s). Siempre responde 200; "
+        "una pieza caida se refleja en su `estado` y en `modo_degradado`. **Requiere** `X-IA-Token`."
+    ),
+    responses={401: R401, 403: R403},
+)
 def estado_sistema() -> EstadoResponse:
     """
     Consulta cada pieza. El modo degradado se declara cuando falla el modelo de
