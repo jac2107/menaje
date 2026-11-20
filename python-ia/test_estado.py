@@ -208,7 +208,8 @@ class PruebasModoDegradadoChat(Base):
         self.assertEqual(r.status_code, 200)
 
     def test_pronostico_degradado_no_afecta_al_chat_ni_viceversa(self):
-        with mock.patch.object(main.pronostico, "cargar_modelo", return_value=None):
+        with mock.patch.object(main.pronostico, "cargar_modelo", return_value=None), \
+                mock.patch.object(main, "guardar_pronostico"):  # no escribir en la BD real
             p = self.client.post(
                 "/pronostico-demanda", json={"tipo_evento": "boda", "mes": 7, "asistentes": 100}, headers=CAB)
         self.assertEqual(p.json()["modo"], "degradado")
