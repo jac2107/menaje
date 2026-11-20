@@ -135,3 +135,69 @@ def ejecutar_tarea(id_tarea: str, r: Optional["redis.Redis"] = None) -> str:
     r.hset(clave, mapping={"estado": estado, "fin": _ahora(), "detalle": detalle})
     r.delete(f"ia:activa:{tipo}")
     return estado
+
+
+# --- Embeddings de productos sueltos (Fase 6A) ---------------------------------
+# El backend Node anota en este SET el id de cada producto creado o editado
+# (SADD: si se edita varias veces seguidas, queda una sola entrada). El worker lo
+# vacia en lotes y llama a `cargar_embeddings.py --ids`. Si Redis cae al guardar un
+# producto, Node lo registra y sigue: `regenerar_embeddings` los recupera todos.
+CLAVE_EMBEDDINGS_PENDIENTES = "ia:embeddings_pendientes"
+LOTE_EMBEDDINGS = 100
+
+
+def encolar_embedding_producto(id_producto: int, r: Optional["redis.Redis"] = None) -> None:
+    (r or obtener_redis()).sadd(CLAVE_EMBEDDINGS_PENDIENTES, int(id_producto))
+
+
+def procesar_embeddings_pendientes(r: Optional["redis.Redis"] = None) -> Optional[str]:
+    """Regenera el embedding de los productos pendientes. Devuelve None si no habia ninguno,
+    o 'completada' / 'error'. Ante un error los ids vuelven a la cola para reintentar."""
+    r = r or obtener_redis()
+    ids = [int(i) for i in (r.spop(CLAVE_EMBEDDINGS_PENDIENTES, LOTE_EMBEDDINGS) or [])]
+    if not ids:
+        return None
+    try:
+        res = subprocess.run(
+            [_cola_python_ml(), "cargar_embeddings.py", "--ids", ",".join(map(str, ids))],
+            cwd=RAIZ_ML, capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=TIMEOUT_TAREA_S, env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+        )
+        if res.returncode == 0:
+            logger.info("Embeddings regenerados para productos %s", ids)
+            return "completada"
+        logger.error("Embeddings de %s fallaron (codigo %s): %s", ids, res.returncode,
+                     ((res.stdout or "") + (res.stderr or ""))[-500:])
+    except Exception as error:
+        logger.error("Embeddings de %s: no se pudo ejecutar (%r)", ids, error)
+    r.sadd(CLAVE_EMBEDDINGS_PENDIENTES, *ids)
+    return "error"
+
+
+# --- Reentrenamiento mensual programado (Fase 6A) -----------------------------
+REENTRENAR_MENSUAL = os.getenv("REENTRENAR_MENSUAL", "1") not in ("0", "false", "False", "")
+REENTRENAR_DIA_MES = max(1, min(28, int(os.getenv("REENTRENAR_DIA_MES", "1"))))
+
+
+def programar_reentrenamiento_mensual(r: Optional["redis.Redis"] = None,
+                                      ahora: Optional[datetime] = None) -> Optional[str]:
+    """Encola el reentrenamiento una vez por mes calendario (a partir del dia REENTRENAR_DIA_MES).
+
+    Un SET NX por mes garantiza una sola ejecucion aunque haya varios workers o se
+    reinicie el worker; si el worker estaba apagado ese dia, lo ejecuta al volver.
+    Devuelve el id de la tarea, o None si no tocaba (o ya habia una en curso)."""
+    if not REENTRENAR_MENSUAL:
+        return None
+    r = r or obtener_redis()
+    ahora = ahora or datetime.now(timezone.utc)
+    if ahora.day < REENTRENAR_DIA_MES:
+        return None
+    if not r.set(f"ia:programada:reentrenar:{ahora:%Y-%m}", _ahora(), nx=True, ex=45 * 24 * 3600):
+        return None
+    try:
+        id_tarea = encolar("reentrenar_pronostico", r)
+        logger.info("Reentrenamiento mensual encolado (%s)", id_tarea)
+        return id_tarea
+    except TareaActiva:
+        logger.info("Reentrenamiento mensual omitido: ya hay uno en curso")
+        return None

@@ -7,6 +7,7 @@ cada ejecucion sobrescribe el vector de la misma fila (UPDATE), sin duplicar.
 Uso:
   python cargar_embeddings.py            # recalcula todos los productos activos
   python cargar_embeddings.py --faltantes  # solo los que aun no tienen embedding
+  python cargar_embeddings.py --ids 3,7    # solo esos productos (los encola el backend al crear/editar)
 Conexion por variables de entorno DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD
 (por defecto: localhost:5433/menaje_db, el docker-compose del repo).
 """
@@ -40,15 +41,20 @@ def texto_producto(
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--faltantes", action="store_true", help="solo productos sin embedding")
+    ap.add_argument("--ids", help="ids de producto separados por comas")
     args = ap.parse_args()
 
     filtro = "AND p.embedding IS NULL" if args.faltantes else ""
+    ids = [int(x) for x in args.ids.split(",") if x.strip()] if args.ids else None
+    if ids is not None:
+        filtro += " AND p.id = ANY(%s)"
     with psycopg.connect(DSN) as conn:
         register_vector(conn)
         filas = conn.execute(
             f"""SELECT p.id, p.nombre, p.descripcion, c.nombre, p.descripcion_busqueda
                   FROM productos p JOIN categorias c ON c.id = p.categoria_id
-                 WHERE p.activo = TRUE {filtro} ORDER BY p.id"""
+                 WHERE p.activo = TRUE {filtro} ORDER BY p.id""",
+            (ids,) if ids is not None else None,
         ).fetchall()
         if not filas:
             print("Nada que procesar.")
