@@ -1,8 +1,12 @@
 """
 Entrenamiento del pronostico de demanda por categoria (Opcion 2, capa 9).
 
-Usa el dataset SINTETICO (data/eventos_sinteticos.csv): las metricas miden cuanto
-aprende la red de los patrones supuestos, no su precision con alquileres reales.
+Usa el dataset SINTETICO (data/eventos_sinteticos.csv) mezclado con los alquileres de
+la BD que tienen tipo_evento y num_asistentes (los de EJEMPLO sembrados con
+database/seeds/ y, cuando existan, los reales). Las metricas miden cuanto aprende la red
+de patrones supuestos; no son precision real mientras casi no haya alquileres reales.
+`--solo-sinteticos` reproduce el entrenamiento original. meta.json guarda cuantos datos
+de cada tipo uso el entrenamiento (el panel muestra esa proporcion).
 
   cd python-ml
   ./venv/Scripts/python -m pronostico.generar_dataset
@@ -15,8 +19,12 @@ servidor). Ademas exporta el paquete de servicio a modelos/pronostico/ (pesos .n
 import argparse
 import csv
 import json
+import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
+
+import entorno  # noqa: F401  (carga python-ml/.env)
 
 import mlflow
 import numpy as np
@@ -40,6 +48,38 @@ def cargar_csv(ruta: Path):
     asist = np.array([int(r["asistentes"]) for r in filas], dtype=np.float64)
     y = np.array([[float(r[f"cant_{c}"]) for c in CATEGORIAS] for r in filas])
     return tipos, meses, asist, y
+
+
+def cargar_alquileres_bd():
+    """Alquileres con tipo de evento y asistentes: (tipo, mes, asistentes, [cant por categoria], es_ejemplo).
+
+    Los alquileres reales anteriores a la migracion 006 no tienen tipo_evento ni
+    num_asistentes y no entran. Si la BD no responde se avisa y se devuelve [] (se
+    entrena solo con el CSV sintetico).
+    """
+    import psycopg
+    dsn = (f"host={os.getenv('DB_HOST', 'localhost')} port={os.getenv('DB_PORT', '5433')} "
+           f"dbname={os.getenv('DB_NAME', 'menaje_db')} user={os.getenv('DB_USER', 'postgres')} "
+           f"password={os.getenv('DB_PASSWORD', '')}")
+    try:
+        with psycopg.connect(dsn, connect_timeout=5) as conn:
+            sel = ", ".join("COALESCE(SUM(ai.cantidad) FILTER (WHERE c.nombre = %s), 0)" for _ in CATEGORIAS)
+            sql = (
+                "SELECT a.es_ejemplo, a.tipo_evento, EXTRACT(MONTH FROM a.fecha_entrega)::int, a.num_asistentes, "
+                f"{sel} FROM alquileres a JOIN alquiler_items ai ON ai.alquiler_id = a.id "
+                "JOIN productos p ON p.id = ai.producto_id JOIN categorias c ON c.id = p.categoria_id "
+                "WHERE a.tipo_evento IS NOT NULL AND a.num_asistentes IS NOT NULL GROUP BY a.id ORDER BY a.id"
+            )
+            filas = conn.execute(sql, CATEGORIAS).fetchall()
+    except Exception as error:
+        print(f"AVISO: no se pudo leer alquileres de la BD ({error!r}); se entrena solo con el CSV sintetico.")
+        return []
+    return [(f[1], int(f[2]), int(f[3]), [float(x) for x in f[4:]], bool(f[0])) for f in filas]
+
+
+def etiqueta_datos(comp: dict) -> str:
+    """SINTETICOS si solo hay CSV; MIXTOS si ademas entran alquileres de ejemplo o reales."""
+    return "MIXTOS" if comp.get("ejemplo", 0) + comp.get("real", 0) else "SINTETICOS"
 
 
 def codificar(tipos, meses, asist) -> np.ndarray:
@@ -94,6 +134,8 @@ def main() -> None:
         sys.stdout.reconfigure(encoding="utf-8")
     p = argparse.ArgumentParser()
     p.add_argument("--csv", type=Path, default=CSV_DEFECTO)
+    p.add_argument("--solo-sinteticos", action="store_true",
+                   help="no leer alquileres de la BD (ejemplo ni reales); solo el CSV")
     p.add_argument("--destino", type=Path, default=DESTINO_DEFECTO)
     p.add_argument("--semilla", type=int, default=42)
     p.add_argument("--epocas", type=int, default=300)
@@ -106,6 +148,16 @@ def main() -> None:
     rng = np.random.default_rng(a.semilla)
 
     tipos, meses, asist, y = cargar_csv(a.csv)
+    origen = ["sintetico"] * len(tipos)
+    bd = [] if a.solo_sinteticos else cargar_alquileres_bd()
+    if bd:
+        tipos = tipos + [f[0] for f in bd]
+        meses = np.concatenate([meses, np.array([f[1] for f in bd])])
+        asist = np.concatenate([asist, np.array([f[2] for f in bd], dtype=np.float64)])
+        y = np.vstack([y, np.array([f[3] for f in bd])])
+        origen += ["ejemplo" if f[4] else "real" for f in bd]
+    composicion = {k: origen.count(k) for k in ("sintetico", "ejemplo", "real")}
+    composicion["total"] = len(origen)
     n = len(tipos)
     idx = rng.permutation(n)
     n_tr, n_va = int(n * 0.70), int(n * 0.15)
@@ -138,12 +190,13 @@ def main() -> None:
     mlflow.set_tracking_uri(f"sqlite:///{(RAIZ / 'mlflow.db').as_posix()}")
     mlflow.set_experiment("pronostico_demanda_categoria")
     with mlflow.start_run() as run:
-        mlflow.set_tags({"datos": "SINTETICOS (generar_dataset.py)", "capa": "9"})
+        mlflow.set_tags({"datos": etiqueta_datos(composicion), "capa": "9"})
         mlflow.log_params({
             "semilla": a.semilla, "epocas_max": a.epocas, "lr": a.lr,
             "ocultas": str(a.ocultas), "paciencia": a.paciencia,
             "n_train": len(i_tr), "n_val": len(i_va), "n_test": len(i_te),
             "dataset": a.csv.name,
+            **{f"n_{k}": v for k, v in composicion.items()},
         })
         for epoca in range(a.epocas):
             red.train()
@@ -190,7 +243,10 @@ def main() -> None:
         pesos = {nombre: t.numpy() for nombre, t in red.state_dict().items()}
         np.savez(a.destino / "pesos.npz", **pesos)
         meta = {
-            "datos": "SINTETICOS", "mlflow_run_id": run.info.run_id,
+            "datos": etiqueta_datos(composicion), "composicion_datos": composicion,
+            "entrenado_en": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "version_modelo": f"{datetime.now(timezone.utc):%Y%m%d%H%M}-{run.info.run_id[:8]}",
+            "mlflow_run_id": run.info.run_id,
             "categorias": CATEGORIAS, "tipos_evento": TIPOS,
             "asistentes_escala": ASISTENTES_ESCALA,
             "asistentes_max_entrenado": int(asist.max()),
@@ -202,14 +258,16 @@ def main() -> None:
             json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
         baseline = {str(m): dict(zip(CATEGORIAS, map(float, tab_mes.get(m, glob)))) for m in range(1, 13)}
         (a.destino / "baseline.json").write_text(json.dumps(
-            {"datos": "SINTETICOS", "promedio_por_mes": baseline,
+            {"datos": etiqueta_datos(composicion), "promedio_por_mes": baseline,
              "error_validacion_mae": dict(zip(CATEGORIAS, base["val"]["mae_por_categoria"]))},
             indent=2, ensure_ascii=False), encoding="utf-8")
         mlflow.log_artifacts(str(a.destino), artifact_path="paquete_servicio")
 
     # --- Reporte ---
     print(f"\nRun MLflow: {run.info.run_id} | mejor epoca: {epoca_mejor} | "
-          f"train/val/test = {len(i_tr)}/{len(i_va)}/{len(i_te)}  (DATOS SINTETICOS)")
+          f"train/val/test = {len(i_tr)}/{len(i_va)}/{len(i_te)}  (datos: {etiqueta_datos(composicion)})")
+    print(f"Composicion: {composicion['sintetico']} sinteticos + {composicion['ejemplo']} de ejemplo "
+          f"+ {composicion['real']} reales = {composicion['total']}")
     print(f"{'conjunto':<10}{'modelo':<28}{'MAE':>8}{'RMSE':>8}")
     for s in ("val", "test"):
         print(f"{s:<10}{'linea base (categoria+mes)':<28}{base[s]['mae']:>8.2f}{base[s]['rmse']:>8.2f}")
