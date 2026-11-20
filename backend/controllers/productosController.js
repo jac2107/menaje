@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const colaEmbeddings = require('../services/colaEmbeddings');
 
 // CU-03: Ver catálogo (cliente) — solo productos activos con stock disponible
 async function getCatalogo(req, res) {
@@ -63,10 +64,52 @@ async function crearProducto(req, res) {
         [r.rows[0].id, stock_inicial, req.usuario.id]
       );
     }
+    // Fase 6A: el embedding del producto nuevo se regenera en segundo plano. No se espera ni
+    // puede hacer fallar el guardado (si Redis cae, encolarEmbeddingProducto solo avisa).
+    colaEmbeddings.encolarEmbeddingProducto(r.rows[0].id);
     res.status(201).json(r.rows[0]);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error al crear producto' });
+  }
+}
+
+// Editar los datos de un producto (dueño). Solo cambia los campos enviados. Si cambia un
+// campo que entra en el texto del embedding (nombre, categoría, descripción), se encola
+// su regeneración (Fase 6A).
+async function editarProducto(req, res) {
+  const id = Number.parseInt(req.params.id, 10);
+  if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error: 'Id de producto inválido' });
+  const { nombre, categoria_id, descripcion, precio_unidad, foto_url } = req.body;
+
+  if ((nombre !== undefined && !String(nombre).trim()) ||
+      (nombre && /[<>]/.test(nombre)) || (descripcion && /[<>]/.test(descripcion)))
+    return res.status(400).json({ error: 'El nombre es obligatorio y ni él ni la descripción admiten < ni >' });
+  if (foto_url && !/^https?:\/\//i.test(foto_url))
+    return res.status(400).json({ error: 'La URL de la foto debe empezar por http:// o https://' });
+  if (precio_unidad !== undefined && !(Number(precio_unidad) > 0))
+    return res.status(400).json({ error: 'El precio debe ser mayor que cero' });
+
+  const campos = { nombre, categoria_id, descripcion, precio_unidad, foto_url };
+  const sets = [], params = [];
+  for (const [col, val] of Object.entries(campos)) {
+    if (val === undefined) continue;
+    params.push(col === 'descripcion' || col === 'foto_url' ? (val || null) : val);
+    sets.push(`${col}=$${params.length}`);
+  }
+  if (!sets.length) return res.status(400).json({ error: 'No hay campos para actualizar' });
+
+  try {
+    params.push(id);
+    const r = await db.query(
+      `UPDATE productos SET ${sets.join(', ')} WHERE id=$${params.length} RETURNING *`, params);
+    if (!r.rows.length) return res.status(404).json({ error: 'Producto no encontrado' });
+    if (nombre !== undefined || categoria_id !== undefined || descripcion !== undefined)
+      colaEmbeddings.encolarEmbeddingProducto(id);
+    res.json(r.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al editar producto' });
   }
 }
 
@@ -158,4 +201,4 @@ async function getCategorias(req, res) {
   }
 }
 
-module.exports = { getCatalogo, crearProducto, getInventario, ajustarStock, getCategorias };
+module.exports = { getCatalogo, crearProducto, editarProducto, getInventario, ajustarStock, getCategorias };
