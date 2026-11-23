@@ -182,6 +182,14 @@ const crearTarea = (tipo) => llamarAdmin('post', '/tareas', { tipo });
 const listarTareas = () => llamarAdmin('get', '/tareas');
 const estadoTarea = (id) => llamarAdmin('get', `/tareas/${encodeURIComponent(id)}`);
 
+// Fase 6B
+const productosSimilares = (id, limite) =>
+    llamarAdmin('get', `/productos-similares/${encodeURIComponent(id)}?limite=${encodeURIComponent(limite)}`);
+const riesgoFaltante = (tipoEvento, mes, asistentes) =>
+    llamarAdmin('post', '/riesgo-faltante', { tipo_evento: tipoEvento, mes, asistentes });
+const serieDemanda = (meses) => llamarAdmin('get', `/serie-demanda?meses=${encodeURIComponent(meses)}`);
+const metricasUso = (dias) => llamarAdmin('get', `/metricas-uso?dias=${encodeURIComponent(dias)}`);
+
 /**
  * Estado de cada pieza. Si FastAPI no responde, NO es un error del panel: se devuelve
  * un estado "degradado" con ia_servicio caido, para que el panel lo muestre.
@@ -211,5 +219,9 @@ module.exports = {
     crearTarea,
     listarTareas,
     estadoTarea,
-    estadoSistema
+    estadoSistema,
+    productosSimilares,
+    riesgoFaltante,
+    serieDemanda,
+    metricasUso
 };

@@ -142,6 +142,26 @@ router.post('/ia/busqueda-semantica', autenticar, busquedaRateLimiter, async (re
 });
 
 /**
+ * GET /api/ia/productos-similares/:id?limite=4   (OPCION 2, Fase 6B)
+ * Productos cercanos (pgvector) al producto indicado. Requiere JWT; mismo limite que la busqueda.
+ */
+router.get('/ia/productos-similares/:id', autenticar, busquedaRateLimiter, async (req, res) => {
+    try {
+        if (!/^[1-9][0-9]{0,9}$/.test(req.params.id)) {
+            return res.status(400).json({ success: false, error: 'Id de producto no válido' });
+        }
+        const lim = req.query.limite === undefined ? 4 : Number.parseInt(req.query.limite, 10);
+        if (!Number.isInteger(lim) || lim < 1 || lim > 12) {
+            return res.status(400).json({ success: false, error: 'El campo "limite" debe ser un entero entre 1 y 12' });
+        }
+        return responderAdmin(res, await iaService.productosSimilares(req.params.id, lim));
+    } catch (error) {
+        console.error('❌ Error en /api/ia/productos-similares:', error.message);
+        return res.status(500).json({ success: false, error: 'Error procesando tu solicitud' });
+    }
+});
+
+/**
  * POST /api/ia/pronostico-demanda   (OPCION 2, capa 9)
  * Demanda estimada por categoria para un evento (modelo entrenado con datos
  * SINTETICOS). Solo administrador (rol "dueno").
@@ -204,6 +224,54 @@ router.get('/ia/estado', autenticar, autorizar('dueno'), panelLecturaLimiter, as
     return responderAdmin(res, await iaService.estadoSistema());
   } catch (error) {
     console.error('❌ Error en /api/ia/estado:', error.message);
+    return res.status(500).json({ success: false, error: 'Error procesando tu solicitud' });
+  }
+});
+
+/** POST /api/ia/riesgo-faltante { tipo_evento, mes, asistentes } — pronostico cruzado con el stock */
+router.post('/ia/riesgo-faltante', autenticar, autorizar('dueno'), panelLecturaLimiter, async (req, res) => {
+  try {
+    const { tipo_evento, mes, asistentes } = req.body;
+    if (!TIPOS_EVENTO.includes(tipo_evento)) {
+      return res.status(400).json({ success: false, error: `"tipo_evento" debe ser uno de: ${TIPOS_EVENTO.join(', ')}` });
+    }
+    if (!Number.isInteger(mes) || mes < 1 || mes > 12) {
+      return res.status(400).json({ success: false, error: '"mes" debe ser un entero entre 1 y 12' });
+    }
+    if (!Number.isInteger(asistentes) || asistentes < 1 || asistentes > 5000) {
+      return res.status(400).json({ success: false, error: '"asistentes" debe ser un entero entre 1 y 5000' });
+    }
+    return responderAdmin(res, await iaService.riesgoFaltante(tipo_evento, mes, asistentes));
+  } catch (error) {
+    console.error('❌ Error en /api/ia/riesgo-faltante:', error.message);
+    return res.status(500).json({ success: false, error: 'Error procesando tu solicitud' });
+  }
+});
+
+/** GET /api/ia/serie-demanda?meses=12 — demanda real por categoria y mes (+ tendencia) */
+router.get('/ia/serie-demanda', autenticar, autorizar('dueno'), panelLecturaLimiter, async (req, res) => {
+  try {
+    const meses = req.query.meses === undefined ? 12 : Number.parseInt(req.query.meses, 10);
+    if (!Number.isInteger(meses) || meses < 1 || meses > 36) {
+      return res.status(400).json({ success: false, error: '"meses" debe ser un entero entre 1 y 36' });
+    }
+    res.set('Cache-Control', 'no-store');
+    return responderAdmin(res, await iaService.serieDemanda(meses));
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'Error procesando tu solicitud' });
+  }
+});
+
+/** GET /api/ia/metricas-uso?dias=14 — consultas, tokens, errores y busquedas sin resultado por dia */
+router.get('/ia/metricas-uso', autenticar, autorizar('dueno'), panelLecturaLimiter, async (req, res) => {
+  try {
+    const dias = req.query.dias === undefined ? 14 : Number.parseInt(req.query.dias, 10);
+    if (!Number.isInteger(dias) || dias < 1 || dias > 90) {
+      return res.status(400).json({ success: false, error: '"dias" debe ser un entero entre 1 y 90' });
+    }
+    res.set('Cache-Control', 'no-store');
+    return responderAdmin(res, await iaService.metricasUso(dias));
+  } catch (error) {
     return res.status(500).json({ success: false, error: 'Error procesando tu solicitud' });
   }
 });
