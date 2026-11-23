@@ -83,6 +83,19 @@
     </div>
 
     <div class="card">
+      <div class="card-title">Demanda real por categoría y mes</div>
+      <div id="serie-tendencia" style="margin-bottom:8px"><p style="color:var(--text-muted)">Consultando...</p></div>
+      <div id="serie-grafico"></div>
+      <div id="serie-leyenda" style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;margin-top:6px"></div>
+      <p style="color:var(--text-muted);font-size:12px;margin-top:6px">Unidades alquiladas (alquileres reales y de ejemplo). Es la serie que vigila la alerta de deriva.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Uso de la IA <span style="font-weight:400;color:var(--text-muted);font-size:12px">· últimos 14 días</span></div>
+      <div id="uso-ia"><p style="color:var(--text-muted)">Consultando...</p></div>
+    </div>
+
+    <div class="card">
       <div class="card-title">Tareas en segundo plano</div>
       <p style="color:var(--text-muted);margin-bottom:12px">Se ejecutan en una cola (Redis) procesada por un worker; puedes cerrar esta página mientras corren.</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
@@ -174,6 +187,9 @@ function pintarCalidad(data) {
       <span style="width:18px;height:18px;border-radius:50%;background:${s.color};flex:none" aria-hidden="true"></span>
       <div><strong>Deriva (concept drift): ${esc(s.texto)}</strong>
         <div style="color:var(--text-muted);font-size:12px">${esc(d.mensaje || '')}</div></div></div>`;
+    if (d.serie && d.serie.mensaje) {
+      html += `<p style="font-size:13px;margin-bottom:6px"><strong>Serie temporal:</strong> ${esc(d.serie.mensaje)}</p>`;
+    }
     if (d.razon != null) {
       html += `<p style="font-size:13px">Error reciente: <strong>${esc(d.mae_reciente)}</strong> unid. (${esc(d.n_alquileres)} alquileres de los últimos ${esc(d.ventana_dias)} días)
         frente a <strong>${esc(d.mae_validacion)}</strong> en validación → <strong>×${esc(d.razon)}</strong>.
@@ -217,24 +233,77 @@ async function pronosticar(ev) {
   btn.disabled = true;
   salida.innerHTML = '<p style="color:var(--text-muted)">Calculando...</p>';
   try {
-    const { data } = await apiFetch('/ia/pronostico-demanda', { method: 'POST', body: JSON.stringify(body) });
+    const [{ data }, riesgo] = await Promise.all([
+      apiFetch('/ia/pronostico-demanda', { method: 'POST', body: JSON.stringify(body) }),
+      // el riesgo es un complemento: si falla, el pronostico se muestra igual
+      apiFetch('/ia/riesgo-faltante', { method: 'POST', body: JSON.stringify(body) }).then(r => r.data).catch(() => null)
+    ]);
     const degradado = data.modo === 'degradado';
+    const porCat = PanelIALogica.riesgoPorCategoria(riesgo);
     salida.innerHTML = `
       <p>${degradado ? pastilla('Modo degradado', 'var(--warn)') : pastilla('Modelo', 'var(--success)')}
          <span class="badge badge-pendiente">Datos ${esc(data.datos_entrenamiento)}</span></p>
       ${data.aviso ? `<p style="color:var(--warn);margin:8px 0">${esc(data.aviso)}</p>` : ''}
       <div class="table-wrap"><table>
-        <thead><tr><th>Categoría</th><th>Demanda estimada</th><th>Confianza (error medio de validación)</th></tr></thead>
+        <thead><tr><th>Categoría</th><th>Demanda estimada</th><th>Confianza (error medio de validación)</th><th>Riesgo de faltante</th></tr></thead>
         <tbody>${data.demanda.map(d => `<tr>
           <td>${esc(d.categoria)}</td>
           <td><strong>${esc(d.cantidad_estimada)}</strong> unid.</td>
-          <td>${d.error_validacion_mae != null ? '± ' + esc(d.error_validacion_mae) + ' unid.' : '—'}</td></tr>`).join('')}
+          <td>${d.error_validacion_mae != null ? '± ' + esc(d.error_validacion_mae) + ' unid.' : '—'}</td>
+          <td>${celdaRiesgo(porCat[d.categoria])}</td></tr>`).join('')}
         </tbody></table></div>
+      <p style="color:var(--text-muted);font-size:12px;margin-top:6px">Riesgo de faltante: <strong>Alcanza</strong> si el stock disponible supera la demanda en un ${riesgo ? Math.round((riesgo.margen_justo - 1) * 100) : 20} % o más; <strong>Justo</strong> si apenas la cubre; <strong>Faltará</strong> si el stock es menor. No descuenta alquileres ya reservados.</p>
       <p style="color:var(--text-muted);font-size:12px;margin-top:6px">Un error menor indica una estimación más fiable. Las cifras salen de datos simulados: úsalas como orientación, no como cifra comprometida.</p>`;
   } catch (e) {
     salida.innerHTML = `<p style="color:var(--danger)">${esc(e.message)}</p>`;
   } finally {
     btn.disabled = false;
+  }
+}
+
+function celdaRiesgo(r) {
+  if (!r) return '—';
+  const s = PanelIALogica.RIESGO[r.semaforo] || { texto: r.semaforo, color: 'var(--text-muted)' };
+  return `${pastilla(s.texto, s.color)} <span style="color:var(--text-muted);font-size:12px">stock ${esc(r.stock_disponible)}${r.faltante ? ' · faltan ' + esc(r.faltante) : ''}</span>`;
+}
+
+// ─── Serie temporal de la demanda real ───────────────────────────────────
+async function cargarSerie() {
+  try {
+    const { data } = await apiFetch('/ia/serie-demanda?meses=12');
+    const t = data.tendencia || {};
+    document.getElementById('serie-tendencia').innerHTML = t.mensaje
+      ? `<p style="color:${t.alerta ? 'var(--warn)' : 'var(--text-muted)'}">${t.alerta ? '⚠ ' : ''}${esc(t.mensaje)}</p>` : '';
+    const svg = PanelIALogica.svgSerieDemanda(data.filas);
+    document.getElementById('serie-grafico').innerHTML = svg || '<p style="color:var(--text-muted)">Aún no hay alquileres con los que armar la serie.</p>';
+    document.getElementById('serie-leyenda').innerHTML = PanelIALogica.leyendaSerie(data.filas).map(l =>
+      `<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${l.color};margin-right:5px"></span>${esc(l.categoria)}</span>`).join('');
+  } catch (e) {
+    document.getElementById('serie-tendencia').innerHTML = `<p style="color:var(--danger)">${esc(e.message)}</p>`;
+  }
+}
+
+// ─── Métricas de uso de la IA ────────────────────────────────────────────
+async function cargarUso() {
+  try {
+    const { data } = await apiFetch('/ia/metricas-uso?dias=14');
+    const t = data.totales;
+    const caja = (n, v) => `<div style="flex:1;min-width:110px;padding:10px;border:1px solid var(--border);border-radius:10px"><div style="font-size:20px;font-weight:700">${esc(v)}</div><div style="color:var(--text-muted);font-size:12px">${n}</div></div>`;
+    const activos = data.por_dia.filter(d => d.consultas || d.busquedas);
+    document.getElementById('uso-ia').innerHTML = `
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+        ${caja('Consultas al chat', t.consultas)}${caja('Tokens usados', t.tokens.toLocaleString('es-PE'))}
+        ${caja('Errores de la IA', t.errores)}${caja('Búsquedas', t.busquedas)}${caja('Búsquedas sin resultado', t.busquedas_sin_resultado)}
+      </div>
+      ${activos.length ? `<div class="table-wrap"><table>
+        <thead><tr><th>Día</th><th>Consultas</th><th>Tokens</th><th>Errores</th><th>Búsquedas</th><th>Sin resultado</th></tr></thead>
+        <tbody>${activos.slice().reverse().map(d => `<tr><td>${esc(d.dia)}</td><td>${esc(d.consultas)}</td><td>${esc(d.tokens)}</td>
+          <td style="${d.errores ? 'color:var(--danger)' : ''}">${esc(d.errores)}</td><td>${esc(d.busquedas)}</td><td>${esc(d.busquedas_sin_resultado)}</td></tr>`).join('')}</tbody></table></div>`
+        : '<p style="color:var(--text-muted)">Sin actividad en los últimos 14 días.</p>'}
+      ${data.consultas_sin_resultado.length ? `<p style="margin-top:10px;font-size:13px"><strong>Búsquedas sin resultado más repetidas:</strong>
+        ${data.consultas_sin_resultado.map(c => `“${esc(c.consulta)}” (${esc(c.veces)})`).join(' · ')}</p>` : ''}`;
+  } catch (e) {
+    document.getElementById('uso-ia').innerHTML = `<p style="color:var(--danger)">${esc(e.message)}</p>`;
   }
 }
 
@@ -284,6 +353,9 @@ async function lanzar(tipo) {
 
 cargarEstado();
 setInterval(cargarEstado, 15000);
+cargarSerie();
+cargarUso();
+setInterval(cargarUso, 60000);
 cargarTareas();
 </script>
 </body>
