@@ -95,6 +95,7 @@
 </div>
 
 <script src="/assets/js/app.js"></script>
+<script src="/assets/js/panel-ia-logica.js"></script>
 <script>
 if (!Auth.requireAuth('dueno')) throw new Error('no auth');
 
@@ -142,14 +143,9 @@ async function cargarEstado() {
 
     pintarCalidad(data);
 
-    const aviso = document.getElementById('aviso-degradado');
-    aviso.style.display = data.modo_degradado ? 'block' : 'none';
-    if (data.modo_degradado) {
-      const caidos = Object.entries(data.componentes)
-        .filter(([k, c]) => c.estado !== 'ok' && ['pronostico', 'busqueda_vectorial', 'ia_servicio'].includes(k))
-        .map(([k]) => NOMBRES_COMPONENTE[k]);
-      document.getElementById('aviso-degradado-detalle').textContent = caidos.length ? 'Afectado: ' + caidos.join(', ') + '.' : '';
-    }
+    const textoAviso = PanelIALogica.avisoDegradado(data, NOMBRES_COMPONENTE);
+    document.getElementById('aviso-degradado').style.display = textoAviso === null ? 'none' : 'block';
+    document.getElementById('aviso-degradado-detalle').textContent = textoAviso || '';
   } catch (e) {
     document.getElementById('estado-lista').innerHTML = `<p style="color:var(--danger)">${esc(e.message)}</p>`;
   }
@@ -244,11 +240,16 @@ async function pronosticar(ev) {
 
 // ─── Tareas ──────────────────────────────────────────────────────────────
 let temporizadorTareas = null;
+let estadosPrevios = null;   // { id: estado } de la consulta anterior (null = aun no hay)
 
 async function cargarTareas() {
   try {
     const { data } = await apiFetch('/ia/tareas');
     const activas = data.some(t => t.estado === 'pendiente' || t.estado === 'en_curso');
+    // Una tarea acaba de terminar (p. ej. el reentrenamiento): refrescar ya el estado del
+    // sistema para que la tarjeta de calidad muestre el modelo nuevo sin esperar 15 s ni recargar.
+    if (estadosPrevios && PanelIALogica.hayTareaTerminada(estadosPrevios, data)) cargarEstado();
+    estadosPrevios = PanelIALogica.estadosDe(data);
     document.getElementById('btn-reentrenar').disabled = data.some(t => t.tipo === 'reentrenar_pronostico' && ['pendiente', 'en_curso'].includes(t.estado));
     document.getElementById('btn-embeddings').disabled = data.some(t => t.tipo === 'regenerar_embeddings' && ['pendiente', 'en_curso'].includes(t.estado));
     document.getElementById('tareas-lista').innerHTML = data.length ? data.slice(0, 6).map(t => `

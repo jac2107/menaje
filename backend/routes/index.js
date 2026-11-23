@@ -199,6 +199,7 @@ const responderAdmin = (res, r) => (
 
 /** GET /api/ia/estado — consulta modelo de pronostico, busqueda vectorial, Redis y Gemini */
 router.get('/ia/estado', autenticar, autorizar('dueno'), panelLecturaLimiter, async (_req, res) => {
+  res.set('Cache-Control', 'no-store'); // el panel debe ver siempre el entrenamiento mas reciente
   try {
     return responderAdmin(res, await iaService.estadoSistema());
   } catch (error) {

@@ -84,10 +84,14 @@ def cargar_error_baseline() -> Dict[str, float]:
         return {}
 
 
-def mtime_modelo() -> Optional[float]:
-    """Fecha de modificacion de meta.json (cambia cuando se reentrena)."""
+def mtime_modelo() -> Optional[tuple]:
+    """Huella del paquete del modelo: (mtime de meta.json, mtime de pesos.npz) en ns.
+
+    Cambia cuando se reentrena. Incluye pesos.npz (no solo meta.json) para que una
+    copia a medio escribir no deje en memoria un modelo mezclado con la meta vieja."""
+    d = directorio_modelo()
     try:
-        return (directorio_modelo() / "meta.json").stat().st_mtime
+        return ((d / "meta.json").stat().st_mtime_ns, (d / "pesos.npz").stat().st_mtime_ns)
     except OSError:
         return None
 
