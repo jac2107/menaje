@@ -68,6 +68,9 @@ class ChatWidget {
                     </div>
                 </div>
 
+                <!-- Sugerencias clicables (preguntas de ejemplo y productos que el asistente encontro) -->
+                <div class="chat-chips" id="chat-chips" aria-label="Sugerencias"></div>
+
                 <!-- Área de entrada -->
                 <div class="chat-input-area">
                     <input 
@@ -77,14 +80,17 @@ class ChatWidget {
                         placeholder="Escribe tu pregunta aquí..."
                         autocomplete="off"
                     >
+                    <button id="chat-mic" class="chat-mic-btn" type="button" style="display:none"
+                        aria-label="Dictar el mensaje por voz" title="Dictar por voz">🎤</button>
                     <button id="send-btn" class="chat-send-btn">
                         <span class="send-icon">▶</span>
                     </button>
                 </div>
 
                 <!-- Indicador de escritura -->
-                <div class="chat-typing" id="typing-indicator" style="display: none;">
+                <div class="chat-typing" id="typing-indicator" style="display: none;" aria-live="polite">
                     <span></span><span></span><span></span>
+                    <em class="chat-step" id="typing-step"></em>
                 </div>
             </div>
         `;
@@ -106,6 +112,8 @@ class ChatWidget {
                 this.sendMessage();
             }
         });
+
+        this.iniciarSugerenciasYVoz();
 
         document.getElementById('close-chat').addEventListener('click', () => {
             this.toggle();
@@ -129,6 +137,7 @@ class ChatWidget {
         this.addMessage(mensaje, 'user');
         this.inputField.value = '';
         this.inputField.focus();
+        this.mostrarSugerencias([]); // las sugerencias anteriores ya no aplican
 
         // Mostrar indicador de escritura
         this.showTypingIndicator(true);
@@ -175,6 +184,12 @@ class ChatWidget {
                 timestamp: data.timestamp,
                 tokens: data.tokens_usados
             });
+
+            // Productos que el asistente encontro para la consulta, como sugerencias clicables
+            this.mostrarSugerencias((data.productos_relacionados || []).map((p) => ({
+                etiqueta: p.nombre,
+                mensaje: window.ClienteIA ? window.ClienteIA.mensajeSobreProducto(p.nombre) : p.nombre
+            })));
 
             // Guardar en historial
             this.conversationHistory.push({
@@ -231,6 +246,65 @@ class ChatWidget {
         if (indicator) {
             indicator.style.display = show ? 'flex' : 'none';
         }
+        // Indicador de espera por pasos: el texto avanza con el tiempo transcurrido.
+        clearInterval(this.relojEspera);
+        const paso = document.getElementById('typing-step');
+        if (show && paso && window.ClienteIA) {
+            const t0 = Date.now();
+            const pintar = () => { paso.textContent = window.ClienteIA.pasoEspera(Date.now() - t0); };
+            pintar();
+            this.relojEspera = setInterval(pintar, 500);
+        } else if (paso) {
+            paso.textContent = '';
+        }
+    }
+
+    /**
+     * Sugerencias clicables (chips) sobre la caja de texto. Cada elemento es
+     * { etiqueta, mensaje }; al pulsarlo se envia `mensaje` como si se hubiera escrito.
+     * El texto se inserta con textContent: viene de la API.
+     */
+    mostrarSugerencias(items) {
+        const cont = document.getElementById('chat-chips');
+        if (!cont) return;
+        cont.textContent = '';
+        for (const it of items) {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'chat-chip';
+            b.textContent = it.etiqueta;
+            b.addEventListener('click', () => {
+                this.inputField.value = it.mensaje;
+                this.sendMessage();
+            });
+            cont.appendChild(b);
+        }
+    }
+
+    /** Preguntas de ejemplo iniciales y dictado por voz (Web Speech del navegador). */
+    iniciarSugerenciasYVoz() {
+        const CI = window.ClienteIA;
+        if (!CI) return; // sin cliente-ia.js el chat funciona como antes
+        this.mostrarSugerencias(CI.SUGERENCIAS_CHAT.map((q) => ({ etiqueta: q, mensaje: q })));
+
+        const mic = document.getElementById('chat-mic');
+        this.dictado = CI.crearDictado(window.SpeechRecognition || window.webkitSpeechRecognition, 'es-PE');
+        if (!this.dictado || !mic) return;
+        mic.style.display = '';
+        mic.addEventListener('click', () => {
+            if (this.dictado.activo) return this.dictado.detener();
+            mic.textContent = '⏹';
+            mic.setAttribute('aria-pressed', 'true');
+            this.dictado.iniciar({
+                onTexto: (texto) => { this.inputField.value = texto; },
+                onError: (codigo) => this.addMessage(`🎤 ${CI.mensajeErrorDictado(codigo)}`, 'bot-error'),
+                onFin: () => {
+                    mic.textContent = '🎤';
+                    mic.setAttribute('aria-pressed', 'false');
+                    this.inputField.focus(); // el usuario revisa el texto y lo envia
+                }
+            });
+        });
     }
 
     /**
