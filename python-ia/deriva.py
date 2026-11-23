@@ -42,6 +42,21 @@ def clasificar(razon: float) -> str:
     return "normal"
 
 
+def combinar_con_serie(resultado: Dict[str, Any], tendencia: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Suma la serie temporal (Fase 6B) a la alerta: adjunta la lectura de tendencia mensual
+    (analitica.analizar_tendencia sobre la vista demanda_categoria_mes) y, si la demanda REAL
+    de alguna categoria cambio mas de SERIE_UMBRAL_CAMBIO en el ultimo mes completo mientras
+    el error por alquiler sigue 'normal', sube el semaforo a 'atencion' (nunca a 'deriva':
+    un mes aislado no basta para pedir reentrenar). Con otros semaforos solo adjunta la serie."""
+    if not tendencia:
+        return resultado
+    salida = {**resultado, "serie": tendencia}
+    if tendencia.get("alerta") and salida.get("semaforo") == "normal":
+        salida["semaforo"] = "atencion"
+        salida["mensaje"] = f"{salida.get('mensaje', '')} Pero la serie temporal avisa: {tendencia['mensaje']}".strip()
+    return salida
+
+
 def consultar_recientes(conn, dias: int = VENTANA_DIAS) -> List[Fila]:
     """Alquileres de los ultimos `dias` con su demanda real por categoria."""
     with conn.cursor() as cur:

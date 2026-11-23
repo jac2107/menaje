@@ -34,6 +34,7 @@ from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
+import analitica
 import deriva
 import pronostico
 import tareas
@@ -197,10 +198,19 @@ class ChatRequest(BaseModel):
     historico: List[Dict[str, Any]] = Field(default_factory=list)
 
 
+class ProductoRelacionado(BaseModel):
+    id: int
+    nombre: str
+    similitud: float
+
+
 class ChatResponse(BaseModel):
     respuesta: str
     timestamp: str
     tokens_usados: int
+    # Fase 6B: productos que el RAG encontro para esta consulta (el chat los muestra como
+    # sugerencias clicables). Lista vacia si no hubo, o si el RAG estaba degradado.
+    productos_relacionados: List[ProductoRelacionado] = Field(default_factory=list)
 
 
 class BusquedaSemanticaRequest(BaseModel):
@@ -514,7 +524,7 @@ def consultar_memoria(usuario_id: int, literal: str, limite: int) -> List[Dict[s
     ) as cur:
         cur.execute(
             """
-            SELECT mensaje_usuario, respuesta_ia,
+            SELECT id::text AS id, mensaje_usuario, respuesta_ia,
                    (1 - (embedding <=> %s::vector))::float AS similitud
             FROM conversaciones_ia
             WHERE usuario_id = %s
@@ -565,6 +575,30 @@ def recuperar_rag(usuario_id: int, mensaje: str) -> Dict[str, Any]:
         usuario_id, len(rag["productos"]), len(rag["memoria"]),
     )
     return rag
+
+
+def construir_contexto_rag(rag: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Documento JSON (columna conversaciones_ia.contexto_rag) con lo que recupero el RAG:
+    productos con su similitud y conversaciones de memoria usadas. None si el RAG no llego a
+    ejecutarse (mensaje largo o sin embedding), para distinguirlo de "se ejecuto y no hallo nada".
+    Los textos de memoria se acortan: es trazabilidad, no una copia de la conversacion.
+    """
+    if not rag.get("embedding"):
+        return None
+    return {
+        "productos": [
+            {"id": p.get("id"), "nombre": p.get("nombre"), "similitud": round(float(p.get("similitud", 0)), 4)}
+            for p in rag.get("productos", [])
+        ],
+        "memoria": [
+            {"id": m.get("id"), "similitud": round(float(m.get("similitud", 0)), 4),
+             "mensaje_usuario": str(m.get("mensaje_usuario", ""))[:200]}
+            for m in rag.get("memoria", [])
+        ],
+        "umbral_productos": RAG_CHAT_UMBRAL_SIMILITUD,
+        "umbral_memoria": MEMORIA_UMBRAL_SIMILITUD,
+    }
 
 
 def _linea_segura(texto: Any, maximo: Optional[int] = None) -> str:
@@ -650,6 +684,7 @@ def guardar_conversacion(
     tokens: int,
     estado: str = "completada",
     embedding: Optional[str] = None,
+    contexto_rag: Optional[Dict[str, Any]] = None,
 ) -> None:
     """
     Guarda el intercambio en conversaciones_ia.
@@ -665,6 +700,21 @@ def guardar_conversacion(
     # Con embedding (OPCION 2) se intenta primero guardarlo; si ese INSERT falla (p. ej.
     # migracion 005 sin aplicar) se reintenta sin el, para no perder el registro de auditoria.
     intentos = []
+    # Fase 6B: con el contexto RAG (JSONB) se intenta primero todo; si falla (p. ej. migracion
+    # 008 sin aplicar) se cae al intento anterior y por ultimo al registro basico.
+    if embedding and contexto_rag:
+        try:
+            contexto_json = json.dumps(contexto_rag, ensure_ascii=False)
+        except (TypeError, ValueError) as error:  # no serializable: se guarda sin el
+            logger.warning("contexto_rag no serializable, se omite (%r)", error)
+            contexto_json = None
+        if contexto_json:
+            intentos.append((
+                """INSERT INTO conversaciones_ia
+                       (usuario_id, mensaje_usuario, respuesta_ia, tokens_usados, estado, embedding, contexto_rag)
+                   VALUES (%s, %s, %s, %s, %s, %s::vector, %s::jsonb)""",
+                base + (embedding, contexto_json),
+            ))
     if embedding:
         intentos.append((
             """INSERT INTO conversaciones_ia
@@ -688,6 +738,19 @@ def guardar_conversacion(
             return
         except Exception as error:
             logger.error("Error guardando conversacion en BD: %r", error)
+
+
+def registrar_busqueda(tipo: str, consulta: str, n_resultados: int) -> None:
+    """Anota la busqueda en busquedas_ia (alimenta "busquedas sin resultado" del panel).
+    Nunca propaga excepciones: la busqueda ya se respondio y esto es solo medicion."""
+    try:
+        with obtener_conexion(commit=True) as conn, conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO busquedas_ia (tipo, consulta, n_resultados) VALUES (%s, %s, %s)",
+                (tipo, consulta[:500], n_resultados),
+            )
+    except Exception as error:
+        logger.warning("No se pudo registrar la busqueda (%r)", error)
 
 
 # ============================================================
@@ -768,6 +831,11 @@ def chat(request: ChatRequest) -> ChatResponse:
     # 1b. RAG (OPCION 2): productos y recuerdos cercanos al mensaje. Nunca lanza:
     # si falla, el prompt queda como en la Opcion 1.
     rag = recuperar_rag(request.usuario_id, request.mensaje)
+    try:
+        contexto_rag = construir_contexto_rag(rag)
+    except Exception as error:  # trazabilidad opcional: nunca debe romper el chat
+        logger.warning("No se pudo armar el contexto RAG para guardar: %r", error)
+        contexto_rag = None
 
     # 2. Construir el prompt de sistema
     system_prompt = construir_system_prompt(contexto, rag["productos"], rag["memoria"])
@@ -815,7 +883,7 @@ def chat(request: ChatRequest) -> ChatResponse:
         # rama abortaba antes del paso 5 y el incidente no dejaba ningun rastro en BD.
         guardar_conversacion(
             request.usuario_id, request.mensaje, f"[error {error_id}]", 0, estado="error",
-            embedding=rag["embedding"],
+            embedding=rag["embedding"], contexto_rag=contexto_rag,
         )
         raise HTTPException(
             status_code=502,
@@ -825,13 +893,17 @@ def chat(request: ChatRequest) -> ChatResponse:
     # 5. Guardar conversación en la BD (no debe romper la respuesta si falla)
     guardar_conversacion(
         request.usuario_id, request.mensaje, respuesta_texto, tokens_usados,
-        embedding=rag["embedding"],
+        embedding=rag["embedding"], contexto_rag=contexto_rag,
     )
 
     return ChatResponse(
         respuesta=respuesta_texto,
         timestamp=datetime.now(timezone.utc).isoformat(),
         tokens_usados=tokens_usados,
+        productos_relacionados=[
+            ProductoRelacionado(id=p["id"], nombre=p["nombre"], similitud=round(float(p["similitud"]), 4))
+            for p in rag["productos"] if p.get("id") is not None and p.get("similitud") is not None
+        ],
     )
 
 
@@ -882,6 +954,7 @@ def busqueda_semantica(request: BusquedaSemanticaRequest) -> BusquedaSemanticaRe
             detail="El asistente no puede consultar el catalogo en este momento",
         )
 
+    registrar_busqueda("semantica", descripcion, len(filas))
     return BusquedaSemanticaResponse(resultados=[ProductoSimilar(**f) for f in filas])
 
 
@@ -996,6 +1069,150 @@ def _calcular_pronostico(request: PronosticoRequest) -> PronosticoResponse:
             for c, v in base[str(request.mes)].items()
         ],
     )
+
+
+# --- Fase 6B: productos similares, riesgo de faltante, serie temporal y metricas de uso ---
+
+@app.get(
+    "/productos-similares/{producto_id}",
+    response_model=BusquedaSemanticaResponse,
+    dependencies=[Depends(verificar_token_servicio)],
+    tags=["Opcion 2"],
+    summary="Productos similares a uno dado (pgvector)",
+    description=(
+        "Los productos activos con stock mas cercanos (distancia de coseno entre embeddings, `<=>` de "
+        "pgvector) al embedding **ya guardado** del producto indicado; no necesita el modelo de "
+        "embeddings. Excluye al propio producto. Lista vacia si el producto aun no tiene embedding. "
+        "**Requiere** `X-IA-Token`."
+    ),
+    responses={401: R401, 403: R403, 404: _err("El producto no existe o esta inactivo.", "Producto no encontrado"),
+               503: R503_BD},
+)
+def productos_similares(producto_id: int, limite: int = 4) -> BusquedaSemanticaResponse:
+    limite = max(1, min(limite, 12))
+    try:
+        with obtener_conexion() as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT embedding IS NOT NULL AS tiene FROM productos WHERE id = %s AND activo = TRUE",
+                        (producto_id,))
+            origen = cur.fetchone()
+            if origen is None:
+                raise HTTPException(status_code=404, detail="Producto no encontrado")
+            filas: List[Dict[str, Any]] = []
+            if origen["tiene"]:
+                cur.execute(
+                    """
+                    SELECT p.id, p.nombre, c.nombre AS categoria, p.descripcion,
+                           p.precio_unidad::float AS precio_unidad,
+                           (p.stock_total - p.stock_baja) AS stock_disponible,
+                           p.foto_url,
+                           (1 - (p.embedding <=> o.embedding))::float AS similitud
+                    FROM productos o
+                    JOIN productos p ON p.id <> o.id
+                    JOIN categorias c ON c.id = p.categoria_id
+                    WHERE o.id = %s
+                      AND p.activo = TRUE
+                      AND (p.stock_total - p.stock_baja) > 0
+                      AND p.embedding IS NOT NULL
+                    ORDER BY p.embedding <=> o.embedding
+                    LIMIT %s
+                    """,
+                    (producto_id, limite),
+                )
+                filas = [dict(f) for f in cur.fetchall()]
+    except HTTPException:
+        raise
+    except psycopg2.Error as error:
+        logger.error("Error en productos similares: %r", error)
+        raise HTTPException(status_code=503, detail="El asistente no puede consultar el catalogo en este momento")
+    registrar_busqueda("similares", f"producto:{producto_id}", len(filas))
+    return BusquedaSemanticaResponse(resultados=[ProductoSimilar(**f) for f in filas])
+
+
+class RiesgoCategoria(BaseModel):
+    categoria: str
+    demanda_estimada: int
+    stock_disponible: int
+    semaforo: Literal["alcanza", "justo", "faltara"]
+    faltante: int = Field(description="Unidades que faltarian (0 si alcanza).")
+
+
+class RiesgoFaltanteResponse(BaseModel):
+    modo: Literal["modelo", "degradado"]
+    aviso: Optional[str] = None
+    margen_justo: float = Field(description="stock >= demanda x margen => 'alcanza'; entre demanda y esa cifra => 'justo'.")
+    categorias: List[RiesgoCategoria]
+
+
+@app.post(
+    "/riesgo-faltante",
+    response_model=RiesgoFaltanteResponse,
+    dependencies=[Depends(verificar_token_servicio)],
+    tags=["Opcion 2"],
+    summary="Riesgo de faltante por categoria",
+    description=(
+        "Cruza el pronostico de demanda de un evento con el stock disponible (stock_total - stock_baja de los "
+        "productos activos) y da un semaforo por categoria: **alcanza** (stock >= demanda x 1.2), **justo** "
+        "(entre la demanda y esa cifra) o **faltara** (stock < demanda). No descuenta alquileres ya reservados. "
+        "No guarda el pronostico en el historial. **Requiere** `X-IA-Token`."
+    ),
+    responses={401: R401, 403: R403, 503: R503_BD},
+)
+def riesgo_faltante(request: PronosticoRequest) -> RiesgoFaltanteResponse:
+    pron = _calcular_pronostico(request)
+    try:
+        with obtener_conexion() as conn:
+            stock = analitica.stock_por_categoria(conn)
+    except psycopg2.Error as error:
+        logger.error("Error leyendo el stock para el riesgo de faltante: %r", error)
+        raise HTTPException(status_code=503, detail="El asistente no puede consultar el catalogo en este momento")
+    return RiesgoFaltanteResponse(
+        modo=pron.modo, aviso=pron.aviso, margen_justo=analitica.RIESGO_MARGEN_JUSTO,
+        categorias=[RiesgoCategoria(**c) for c in analitica.cruzar_riesgo(
+            [d.model_dump() for d in pron.demanda], stock)],
+    )
+
+
+@app.get(
+    "/serie-demanda",
+    dependencies=[Depends(verificar_token_servicio)],
+    tags=["Opcion 2"],
+    summary="Demanda real por categoria y mes",
+    description=(
+        "Serie temporal de unidades alquiladas por categoria y mes (vista `demanda_categoria_mes`), los ultimos "
+        "`meses` (1-36) con datos, mas la lectura de tendencia que usa la alerta de deriva. `unidades_ejemplo` "
+        "son las que provienen de alquileres de ejemplo. **Requiere** `X-IA-Token`."
+    ),
+    responses={401: R401, 403: R403, 503: R503_BD},
+)
+def serie_demanda(meses: int = 12) -> Dict[str, Any]:
+    meses = max(1, min(meses, 36))
+    try:
+        with obtener_conexion() as conn:
+            filas = analitica.serie_demanda(conn, meses)
+    except psycopg2.Error as error:
+        logger.error("Error leyendo la serie de demanda: %r", error)
+        raise HTTPException(status_code=503, detail="No se pudo consultar la demanda historica")
+    return {"meses": meses, "filas": filas, "tendencia": analitica.analizar_tendencia(filas)}
+
+
+@app.get(
+    "/metricas-uso",
+    dependencies=[Depends(verificar_token_servicio)],
+    tags=["Opcion 2"],
+    summary="Metricas de uso de la IA",
+    description=(
+        "Por dia (1-90 dias): consultas al chat, tokens, errores de Gemini, busquedas y busquedas sin "
+        "resultado, mas las consultas sin resultado mas repetidas. **Requiere** `X-IA-Token`."
+    ),
+    responses={401: R401, 403: R403, 503: R503_BD},
+)
+def metricas_uso(dias: int = 14) -> Dict[str, Any]:
+    try:
+        with obtener_conexion() as conn:
+            return analitica.metricas_uso(conn, dias)
+    except psycopg2.Error as error:
+        logger.error("Error leyendo las metricas de uso: %r", error)
+        raise HTTPException(status_code=503, detail="No se pudieron consultar las metricas")
 
 
 # --- Tareas en segundo plano (OPCION 2, Fase 4) ---
@@ -1144,7 +1361,12 @@ def _estado_deriva() -> Dict[str, Any]:
     try:
         with obtener_conexion() as conn:
             filas = deriva.consultar_recientes(conn) if modelo is not None else []
-        return deriva.evaluar(modelo, filas)
+            try:  # la serie es un refuerzo: si falla, la alerta funciona sin ella
+                tendencia = analitica.analizar_tendencia(analitica.serie_demanda(conn, 12))
+            except Exception as error_serie:
+                logger.warning("Deriva: sin serie temporal (%r)", error_serie)
+                tendencia = None
+        return deriva.combinar_con_serie(deriva.evaluar(modelo, filas), tendencia)
     except Exception as error:
         logger.warning("Deriva: no se pudo evaluar (%r)", error)
         return {"semaforo": "sin_datos", "mensaje": "No se pudo consultar los alquileres recientes."}
