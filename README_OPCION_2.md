@@ -24,7 +24,7 @@ python-ml: genera embeddings (e5-small), dataset sintético y entrena la red (Py
 | `python-ia/` (FastAPI) | `/chat`, `/busqueda-semantica`, `/pronostico-demanda`, `/tareas`, `/estado`. Swagger en `/docs` si `IA_ENV=dev` |
 | `python-ia/worker_tareas.py` | Ejecuta las tareas encoladas en Redis (reentrenar pronóstico, regenerar embeddings) |
 | `python-ml/` | `cargar_embeddings.py`, `pronostico/` (dataset sintético + entrenamiento), mediciones (`resultados_*.txt`) |
-| `database/` | `menajedb_filled.sql`, `migrations/001–007`, `seeds/` |
+| `database/` | `menajedb_filled.sql`, `migrations/001–008`, `seeds/` |
 
 ## Requisitos
 Docker Desktop · Python 3.12 · Node 20+ (probado con 24) · una clave de la API de Google Gemini (solo para el chat).
@@ -50,8 +50,8 @@ docker compose up -d
 grep -v transaction_timeout database/menajedb_filled.sql | \
   docker exec -i menaje_postgres psql -U postgres -d menaje_db -v ON_ERROR_STOP=1 -q
 
-# 4) Migraciones 001 a 007 (en orden), el seed de descripciones de búsqueda y el historial de ejemplo
-for f in database/migrations/00{1,2,3,4,5,6,7}_*.sql; do
+# 4) Migraciones 001 a 008 (en orden), el seed de descripciones de búsqueda y el historial de ejemplo
+for f in database/migrations/00{1,2,3,4,5,6,7,8}_*.sql; do
   docker exec -i menaje_postgres psql -U postgres -d menaje_db -v ON_ERROR_STOP=1 -q < "$f"
 done
 docker exec -i menaje_postgres psql -U postgres -d menaje_db -v ON_ERROR_STOP=1 -q < database/seeds/descripcion_busqueda.sql
@@ -139,13 +139,26 @@ categoría o descripción) un producto, Node hace `SADD ia:embeddings_pendientes
 
 ## Pruebas
 ```bash
-cd python-ia && ./venv/Scripts/python -m unittest discover -p "test_*.py"   # 97; test_rag y parte de test_fase6a necesitan la BD levantada
-cd backend  && npm test                                                     # 18 (401/403, CORS, rate limit, cola de embeddings; la de Redis real se omite sin Redis)
+cd python-ia && ./venv/Scripts/python -m unittest discover -p "test_*.py"   # 145; test_rag, test_fase6b y parte de test_fase6a necesitan la BD levantada (con la migración 008)
+cd backend  && npm test                                                     # 48 (401/403, CORS, rate limit, cola de embeddings, rutas de la Fase 6B, lógica del panel y del cliente; la de Redis real se omite sin Redis)
 ```
 No llaman a Gemini. Mediciones guardadas: `python-ml/resultados_precision_busqueda.txt`,
 `resultados_carga_busqueda.txt`, `resultados_seguridad.txt`, `resultados_umbral_chat.txt`.
 Informes por fase: `INFORME_FASE3_PRONOSTICO_DEMANDA.md`, `INFORME_FASE4_PANEL_ADMIN.md`.
 
+## Fase 6B — contexto RAG, serie temporal, riesgo de faltante, métricas y mejoras del cliente
+
+Migración `008_fase6b_contexto_serie_metricas.sql` (aditiva): columna `conversaciones_ia.contexto_rag` (JSONB), vista `demanda_categoria_mes` y tabla `busquedas_ia`.
+
+* **Modelo documental.** Cada respuesta del chat guarda en `contexto_rag` los productos que recuperó el RAG (id, nombre, similitud) y las conversaciones de memoria usadas. `NULL` si el RAG no corrió (mensaje largo o sin embedding). Si guardarlo falla, el chat y el registro básico siguen funcionando.
+* **Serie temporal.** La vista da unidades reales por categoría y mes. El Panel IA la dibuja (barras apiladas) y la alerta de deriva la usa: si la demanda real de una categoría cambia más de `SERIE_UMBRAL_CAMBIO` (50 %) en el último mes completo frente al promedio de los 6 previos y el semáforo estaba en *normal*, sube a *atención* (nunca a *deriva*). El mes en curso se ignora.
+* **Riesgo de faltante.** `POST /api/ia/riesgo-faltante` cruza el pronóstico con el stock disponible (`stock_total − stock_baja`, activos; **no** descuenta alquileres ya reservados): *alcanza* (stock ≥ demanda × `RIESGO_MARGEN_JUSTO`, 1.2), *justo* (entre la demanda y esa cifra), *faltará* (stock < demanda). El panel lo muestra por categoría junto al pronóstico.
+* **Métricas de uso.** `GET /api/ia/metricas-uso?dias=14`: consultas, tokens, errores de Gemini y búsquedas sin resultado por día (de `conversaciones_ia` y `busquedas_ia`; cada búsqueda semántica o de similares queda anotada).
+* **Cliente.** Botón *Productos similares* en las tarjetas del catálogo (`GET /api/ia/productos-similares/:id`, pgvector sobre el embedding ya guardado), sugerencias clicables bajo la búsqueda y en el chat (preguntas de ejemplo y productos que halló el RAG), indicador de espera por pasos y dictado por voz con la API del navegador (el botón 🎤 solo aparece si el navegador la soporta; en Chrome/Edge necesita internet y permiso de micrófono).
+* **Búsqueda por imagen: no implementada.** Solo 8 de 38 productos tienen foto real; ver `docs/fase6b-busqueda-por-imagen.md`.
+* Datos para el informe: `docs/informe-datos/`.
+
 ## Rutas nuevas (todas solo rol `dueno`, salvo búsqueda)
 `POST /api/ia/busqueda-semantica` (JWT) · `POST /api/ia/pronostico-demanda` · `GET /api/ia/estado` ·
-`POST|GET /api/ia/tareas` · `GET /api/ia/tareas/:id`.
+`POST|GET /api/ia/tareas` · `GET /api/ia/tareas/:id` · `POST /api/ia/riesgo-faltante` · `GET /api/ia/serie-demanda` · `GET /api/ia/metricas-uso` ·
+`GET /api/ia/productos-similares/:id` (cualquier usuario con JWT).

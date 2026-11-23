@@ -31,7 +31,7 @@ que importa para reproducir resultados.
 | `multer` | ^1.4.5-lts.1 | 1.4.5-lts.2 | subida de archivos (dependencia ya presente; sin uso nuevo en la Fase 6B) |
 | `dotenv` | ^16.6.1 | 16.6.1 | variables de entorno |
 | `nodemon` *(dev)* | ^3.1.4 | 3.1.14 | recarga en desarrollo |
-| `node:test` *(pruebas)* | integrado en Node | — | 48 pruebas en `backend/tests` |
+| `node:test` *(pruebas)* | integrado en Node | — | 48 pruebas en `backend/tests` (`npm test`) |
 
 ## 4.3 Microservicio de IA (Python)
 
@@ -51,7 +51,7 @@ que importa para reproducir resultados.
 | `python-dotenv` | ==1.0.0 | 1.0.0 | lectura de `.env` |
 | `httpx` *(pruebas)* | ==0.27.2 | 0.27.2 | `TestClient` de Starlette |
 | `fakeredis` *(pruebas)* | >=2.20 | 2.40.0 | Redis simulado en pruebas |
-| `unittest` *(pruebas)* | biblioteca estándar | — | 108 + nuevas pruebas en `python-ia/test_*.py` |
+| `unittest` *(pruebas)* | biblioteca estándar | — | 145 pruebas en `python-ia/test_*.py` |
 
 ## 4.4 Aprendizaje automático (entrenamiento)
 
