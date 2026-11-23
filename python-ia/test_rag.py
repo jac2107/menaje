@@ -57,6 +57,11 @@ class PruebasRAG(unittest.TestCase):
     def setUp(self):
         self.inicio = datetime.now(timezone.utc)
         GeminiFalso.ultimo_prompt = None
+        # Fase 6B: la busqueda semantica anota cada consulta en busquedas_ia; estas pruebas no
+        # deben dejar filas que contaminen las metricas de uso del panel.
+        parche = mock.patch.object(main, "registrar_busqueda")
+        parche.start()
+        self.addCleanup(parche.stop)
 
     def tearDown(self):
         borrar_conversaciones_desde(self.inicio)
