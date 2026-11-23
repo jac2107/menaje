@@ -49,11 +49,23 @@
             <input class="form-control" id="bi-q" maxlength="500" placeholder="Describe lo que necesitas, p. ej. manteles para casamiento"
                    onkeydown="if(event.key==='Enter')busquedaInteligente()"/>
           </div>
+          <button type="button" class="btn btn-sm" id="bi-mic" style="display:none" aria-label="Dictar la búsqueda por voz" title="Dictar por voz" onclick="dictarBusqueda()">🎤</button>
           <button type="button" class="btn btn-primary" id="bi-btn" onclick="busquedaInteligente()">Buscar</button>
           <button type="button" class="btn btn-sm" id="bi-limpiar" style="display:none" onclick="limpiarBusquedaInteligente()">Limpiar</button>
         </div>
-        <div id="bi-msg" style="font-size:.85rem;color:var(--text-muted);margin-top:8px;display:none"></div>
+        <div id="bi-sugerencias" class="filter-chips" style="margin-top:10px" aria-label="Búsquedas sugeridas"></div>
+        <div id="bi-msg" style="font-size:.85rem;color:var(--text-muted);margin-top:8px;display:none" aria-live="polite"></div>
         <div id="bi-grid" style="display:none;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;margin-top:12px;"></div>
+      </div>
+
+      <!-- Productos similares (OPCIÓN 2: pgvector) -->
+      <div class="card" id="sim-panel" style="margin-bottom:16px;display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+          <strong id="sim-titulo">Productos similares</strong>
+          <button type="button" class="btn btn-sm" onclick="cerrarSimilares()">Cerrar</button>
+        </div>
+        <div id="sim-msg" style="font-size:.85rem;color:var(--text-muted);margin-top:8px" aria-live="polite"></div>
+        <div id="sim-grid" style="display:none;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;margin-top:12px;"></div>
       </div>
 
       <!-- Filtros -->
@@ -128,6 +140,7 @@
 <!-- Chat Widget (OPCIÓN 1 - IA Gemini) -->
 <div id="chat-container"></div>
 <script src="/assets/js/ia-auth.js"></script>
+<script src="/assets/js/cliente-ia.js"></script>
 <script src="/assets/js/chatwidget.js"></script>
 <script src="/assets/js/recommendationcards.js"></script>
 <script src="/assets/js/ia-integration.js"></script>
@@ -220,9 +233,12 @@ function renderProductos(prods) {
              <button class="btn btn-primary btn-sm" onclick="agregarAlCarrito(${p.id},'${p.nombre}',${p.precio_unidad},${p.stock_disponible})">+ Añadir</button>
            </div>`
         : '<span style="color:var(--danger);font-size:.85rem;margin-top:auto">Sin stock</span>'}
+      <button type="button" class="btn btn-sm" style="margin-top:8px" onclick="verSimilares(${p.id})">Productos similares</button>
     </div>
   `).join('');
+  catalogoCache = prods;
 }
+let catalogoCache = [];
 
 // ─── Búsqueda inteligente (OPCIÓN 2) ─────────────────────────────────────
 let biResultados = [];
@@ -238,7 +254,10 @@ async function busquedaInteligente() {
   if (q.length < 2) return toast('Escribe al menos 2 caracteres', 'warn');
   btn.disabled = true;
   msg.style.display = '';
-  msg.textContent = 'Buscando...';
+  const t0 = Date.now();
+  const pintarPaso = () => { msg.textContent = window.ClienteIA ? ClienteIA.pasoEspera(Date.now() - t0) : 'Buscando...'; };
+  pintarPaso();
+  const reloj = setInterval(pintarPaso, 500);
   try {
     const r = await apiFetch('/ia/busqueda-semantica', {
       method: 'POST',
@@ -251,6 +270,7 @@ async function busquedaInteligente() {
     document.getElementById('bi-grid').style.display = 'none';
     msg.textContent = e.message;
   } finally {
+    clearInterval(reloj);
     btn.disabled = false;
   }
 }
@@ -261,7 +281,7 @@ function renderBusquedaInteligente() {
   document.getElementById('bi-limpiar').style.display = '';
   if (!biResultados.length) {
     grid.style.display = 'none';
-    msg.textContent = 'No encontramos productos parecidos a tu descripción. Prueba con otras palabras o usa los filtros del catálogo.';
+    msg.textContent = 'No encontramos productos parecidos a tu descripción. Prueba con otras palabras, con una de las sugerencias de arriba o con los filtros del catálogo.';
     return;
   }
   msg.textContent = `${biResultados.length} producto(s) ordenados por similitud:`;
@@ -278,6 +298,7 @@ function renderBusquedaInteligente() {
         <input type="number" id="bi-qty-${p.id}" min="1" max="${p.stock_disponible}" value="1" class="form-control" style="width:70px;padding:6px;" />
         <button class="btn btn-primary btn-sm" onclick="agregarDesdeBusqueda(${p.id})">+ Añadir</button>
       </div>
+      <button type="button" class="btn btn-sm" style="margin-top:8px" onclick="verSimilares(${p.id})">Productos similares</button>
     </div>
   `).join('');
 }
@@ -292,6 +313,91 @@ function agregarDesdeBusqueda(id) {
   actualizarCarritoUI();
   toast(`${p.nombre} añadido al carrito`);
 }
+
+// ─── Sugerencias, dictado por voz y productos similares (Fase 6B) ──────────
+function pintarSugerencias() {
+  const cont = document.getElementById('bi-sugerencias');
+  if (!window.ClienteIA) return;
+  cont.innerHTML = ClienteIA.SUGERENCIAS_BUSQUEDA.map((s, i) =>
+    `<button type="button" class="filter-chip" data-sug="${i}">${biEsc(s)}</button>`).join('');
+  cont.querySelectorAll('[data-sug]').forEach(b => b.addEventListener('click', () => {
+    document.getElementById('bi-q').value = ClienteIA.SUGERENCIAS_BUSQUEDA[Number(b.dataset.sug)];
+    busquedaInteligente();
+  }));
+}
+
+const dictado = window.ClienteIA ? ClienteIA.crearDictado(window.SpeechRecognition || window.webkitSpeechRecognition, 'es-PE') : null;
+if (dictado) document.getElementById('bi-mic').style.display = '';
+
+function dictarBusqueda() {
+  const mic = document.getElementById('bi-mic'), entrada = document.getElementById('bi-q');
+  if (!dictado) return;
+  if (dictado.activo) return dictado.detener();
+  mic.textContent = '⏹';
+  mic.setAttribute('aria-pressed', 'true');
+  dictado.iniciar({
+    onTexto: (texto) => { entrada.value = texto.slice(0, 500); },
+    onError: (codigo) => toast(ClienteIA.mensajeErrorDictado(codigo), 'warn'),
+    onFin: () => {
+      mic.textContent = '🎤';
+      mic.setAttribute('aria-pressed', 'false');
+      if (entrada.value.trim().length >= 2) busquedaInteligente();
+    }
+  });
+}
+
+let simResultados = [];
+
+async function verSimilares(id) {
+  const origen = [...catalogoCache, ...biResultados, ...simResultados].find(p => p.id === id);
+  const panel = document.getElementById('sim-panel'), msg = document.getElementById('sim-msg'), grid = document.getElementById('sim-grid');
+  document.getElementById('sim-titulo').textContent = origen ? 'Productos similares a "' + origen.nombre + '"' : 'Productos similares';
+  panel.style.display = '';
+  grid.style.display = 'none';
+  msg.textContent = 'Buscando productos parecidos…';
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  try {
+    const r = await apiFetch('/ia/productos-similares/' + encodeURIComponent(id) + '?limite=4');
+    simResultados = r.data.resultados;
+    if (!simResultados.length) { msg.textContent = 'Por ahora no hay otros productos parecidos con stock.'; return; }
+    msg.textContent = 'Ordenados de más a menos parecidos:';
+    grid.style.display = 'grid';
+    grid.innerHTML = simResultados.map(p => `
+      <div class="card card-product" style="padding:16px;display:flex;flex-direction:column;">
+        ${p.foto_url ? `<img src="${biEsc(p.foto_url)}" alt="" style="width:100%;height:120px;object-fit:cover;border-radius:8px;margin-bottom:12px;" />` : ''}
+        <div style="font-weight:700;margin-bottom:4px">${biEsc(p.nombre)}</div>
+        <div style="font-size:.8rem;color:var(--text-muted);margin-bottom:4px">${biEsc(p.categoria)} · parecido ${Math.round(p.similitud * 100)}%</div>
+        <div style="font-size:1.05rem;font-weight:700;color:var(--accent);margin-bottom:4px">${sol(p.precio_unidad)}</div>
+        <div style="font-size:.8rem;margin-bottom:10px">Disponible: <strong>${p.stock_disponible}</strong></div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:auto">
+          <input type="number" id="sim-qty-${p.id}" min="1" max="${p.stock_disponible}" value="1" class="form-control" style="width:70px;padding:6px;" />
+          <button class="btn btn-primary btn-sm" onclick="agregarDesdeSimilares(${p.id})">+ Añadir</button>
+        </div>
+        <button type="button" class="btn btn-sm" style="margin-top:8px" onclick="verSimilares(${p.id})">Productos similares</button>
+      </div>`).join('');
+  } catch (e) {
+    grid.style.display = 'none';
+    msg.textContent = e.message;
+  }
+}
+
+function agregarDesdeSimilares(id) {
+  const p = simResultados.find(x => x.id === id);
+  if (!p) return;
+  const qty = parseInt(document.getElementById('sim-qty-' + id).value) || 1;
+  const existente = carrito.find(x => x.producto_id === id);
+  if (qty < 1 || (existente?.cantidad || 0) + qty > p.stock_disponible) return toast('No hay suficiente stock', 'warn');
+  agregarItemAlCarrito(id, p.nombre, p.precio_unidad, qty);
+  actualizarCarritoUI();
+  toast(p.nombre + ' añadido al carrito');
+}
+
+function cerrarSimilares() {
+  simResultados = [];
+  document.getElementById('sim-panel').style.display = 'none';
+}
+
+pintarSugerencias();
 
 function limpiarBusquedaInteligente() {
   biResultados = [];
